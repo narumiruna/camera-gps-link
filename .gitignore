@@ -143,4 +143,5 @@ xcuserdata/
 DerivedData/
 
 # Project
-third_party/
+third_party/*
+!third_party/references.md
