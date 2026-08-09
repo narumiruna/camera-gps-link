@@ -1,6 +1,6 @@
 # Sony camera location compatibility
 
-Support is qualified by exact model, firmware, advertisement protocol version, and discovered BLE location profile. Matching a known GATT shape is **experimental**, not proof that a camera accepts GPS data. The A7C II row records the historical hardware baseline plus a passing post-refactor Python foreground write; full promotion remains pending until iOS produces matching GPS EXIF.
+Support is qualified by exact model, firmware, advertisement protocol version, and discovered BLE location profile. Matching a known GATT shape is **experimental**, not proof that a camera accepts GPS data. The current plan limits physical-camera qualification to A7C II: its row records the historical hardware baseline plus a passing post-refactor Python foreground write, with full promotion pending matching iOS GPS EXIF. Every other row remains an automated-fixture candidate with no physical test or promotion required.
 
 | Model | Firmware | Advertisement version | Profile | DD21 / packet | Python foreground | iOS foreground | Background | Evidence |
 | --- | --- | ---: | --- | --- | --- | --- | --- | --- |
@@ -24,11 +24,10 @@ Support is qualified by exact model, firmware, advertisement protocol version, a
 
 Background behavior is never inferred from foreground success. Models not listed above remain unverified.
 
-## Qualification order
+## Current validation scope
 
-1. Re-run A7C II Python and iOS foreground EXIF checks after capability refactoring.
-2. Qualify A7 III; keep protocol-`<65` legacy physical status unverified unless that hardware is observed.
-3. Qualify A7 IV completely, then A6700 independently.
-4. Qualify A7R V, A7S III, A1, ZV-E1, and ZV-E10 II individually.
+1. Re-run only A7C II Python and iOS foreground EXIF checks after capability refactoring.
+2. Validate generic modern/legacy resolution, execution safety, compensation, and experimental approval through automated Python and Swift fixtures.
+3. Do not collect snapshots, perform writes, or request EXIF evidence from non-A7C II physical cameras under the current plan; keep every such row unverified.
 
-Use `sonygeotag compatibility-snapshot --target <model> --pair` first. Real writes require separate explicit authorization and approved coordinates.
+Read-only snapshot and experimental-write tooling remains available for future separately scoped qualification. Any real write still requires separate explicit authorization and approved coordinates.

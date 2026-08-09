@@ -2,13 +2,15 @@
 
 ## Goal
 
-Expand the Python tools in `src/` and the iOS app from A7C II-only validation to capability-driven Sony BLE location support, qualifying models in this order:
+Expand the Python tools in `src/` and the iOS app from A7C II-only assumptions to capability-driven Sony BLE location support while limiting physical-camera qualification in this plan to A7C II.
 
-1. Sony A7 III (`ILCE-7M3`), including the legacy DD11 flow when a camera advertises protocol `< 65` and lacks DD30/DD31.
-2. Sony A7 IV (`ILCE-7M4`), then Sony A6700 (`ILCE-6700`), both expected but not assumed to use the modern A7C II flow.
-3. Sony A7R V (`ILCE-7RM5`), A7S III (`ILCE-7SM3`), A1 (`ILCE-1`), ZV-E1, and ZV-E10 II, each qualified independently rather than through a family-wide claim.
+The automated compatibility scope covers:
 
-Success means protocol behavior is selected from completed service/characteristic discovery, usable GATT properties, advertisement protocol version, and DD21 data rather than model-name assumptions; A7C II behavior remains unchanged; and each named model is labeled verified only after both Python and iOS foreground writes produce correct GPS EXIF on new photos.
+1. Sony A7 III (`ILCE-7M3`) as the named legacy-profile candidate when protocol `< 65` and DD30/DD31 are absent.
+2. Sony A7 IV (`ILCE-7M4`) and Sony A6700 (`ILCE-6700`) as modern-profile candidates without assuming behavior from model names.
+3. Sony A7R V (`ILCE-7RM5`), A7S III (`ILCE-7SM3`), A1 (`ILCE-1`), ZV-E1, and ZV-E10 II as recognized experimental identities without model-family promotion.
+
+Success means protocol behavior is selected from completed service/characteristic discovery, usable GATT properties, advertisement protocol version, and DD21 data rather than model-name assumptions; A7C II retains its behavior and passes the requested physical regressions; and every non-A7C II model remains explicitly experimental/unverified with no physical-camera test required by this plan.
 
 ## Context
 
@@ -29,7 +31,7 @@ Success means protocol behavior is selected from completed service/characteristi
 - Resolve only after all requested Sony services have completed characteristic discovery.
 - Give each resolver the advertisement protocol version and discovered descriptors containing service UUID, characteristic UUID, and properties.
 - Require characteristics to belong to the expected DD service and have these properties before a profile is executable:
-  - DD11: write-with-response; write-without-response-only remains unsupported until separately researched on physical hardware.
+  - DD11: write-with-response; write-without-response-only remains unsupported.
   - DD21: read.
   - DD30 and DD31 for modern flow: write-with-response.
   - DD01 when used: notify or indicate.
@@ -73,30 +75,32 @@ Success means protocol behavior is selected from completed service/characteristi
 
 - Do not infer location support from FF00 Bluetooth-remote compatibility.
 - Do not claim all Sony Alpha or ZV cameras are supported because one family member works.
-- Do not change DD11 field encoding unless a model capture proves a protocol difference.
-- Do not alter background reconnect or low-power policy; new models receive foreground qualification first, and background support remains separately unverified.
-- Do not run `just location-write`, another Python write, or an iOS camera write while executing this plan unless the user separately authorizes that physical test and supplies or approves the coordinates.
+- Do not change DD11 field encoding without separately scoped protocol evidence.
+- Do not alter or qualify background reconnect or low-power behavior.
+- Do not capture snapshots, pair, write GPS data, or collect EXIF evidence on a physical camera other than A7C II as part of this plan.
+- Do not run an A7C II camera write unless the user separately authorizes that test and supplies or approves the coordinates.
 
 ## Assumptions
 
-- A7 III firmware may expose either a legacy or modern profile; model name alone will not force legacy behavior.
-- A7 IV and A6700 are modern-flow candidates, but remain experimental until their actual identity, advertisement, GATT map/properties, DD21 value, operations, and EXIF are observed.
-- ZV scope initially means ZV-E1 and ZV-E10 II because those are the models in the checked-in compatibility reference; another ZV model requires its own matrix row and qualification evidence.
-- Camera-native JPEG or HEIF can provide repeatable EXIF qualification; the user explicitly selected HEIF for the A7C II regression, while RAW support remains out of scope.
+- Automated legacy and modern fixtures can validate capability selection, operation ordering, compensation, and approval gating without claiming physical compatibility.
+- A7 III may expose either a legacy or modern profile; model name alone will not force legacy behavior.
+- A7 IV and A6700 remain modern-flow candidates, not verified models.
+- ZV scope means only the documented ZV-E1 and ZV-E10 II candidate identities; another ZV model requires its own experimental matrix row.
+- Camera-native JPEG or HEIF provides A7C II EXIF qualification; the user explicitly selected HEIF for the Python regression, while RAW support remains out of scope.
 
 ## Unknowns
 
-- Which target cameras and firmware versions will be physically available.
-- Whether an available A7 III still advertises protocol `< 65`; if not, legacy support can be implemented and fixture-tested but remains physically unverified unless the user explicitly accepts that deferral.
-- Whether DD01 is required, optional, or behaviorally different on each model.
-- Whether any target returns a DD21 layout that differs from the observed A7C II response.
+- Actual firmware, advertisement, GATT, DD21, and write behavior for every non-A7C II model remain intentionally unresolved and do not block this plan.
+- Whether DD01 is required, optional, or behaviorally different beyond the observed A7C II profile.
+- Whether another model returns a DD21 layout that differs from the observed A7C II response.
 
 ## Risks
 
 - Resolving from partial discovery or UUIDs without properties could write to a misidentified/incompatible characteristic; completed discovery and strict property checks must fail closed.
 - Modern DD21 is read after DD30/DD31 in the validated flow, so negotiation failure can occur after setup writes; per-operation acquisition tracking and compensation are required.
 - A model can change behavior across firmware versions; verification and consent keys must include firmware when known and protocol version/profile always.
-- Refactoring the working A7C II flow can regress foreground or background reconnection; run full local checks and an explicitly authorized A7C II foreground regression before any experimental-model write.
+- Automated fixtures cannot prove that a non-A7C II camera accepts GPS data; those models must remain experimental/unverified and receive no verified registry entry.
+- Refactoring the working A7C II flow can regress foreground or background reconnection; run full local checks and the explicitly authorized A7C II foreground regressions before closing the plan.
 - A generic Sony scan may find the wrong nearby camera; continue preferring the remembered peripheral and show resolved identity before experimental approval.
 - Raw BLE captures may contain stable identifiers, credentials, or unknown sensitive payloads; use the sanitized snapshot path and never commit raw captures.
 
@@ -105,7 +109,7 @@ Success means protocol behavior is selected from completed service/characteristi
 ### Phase 1 — Define the compatibility and safety contract
 
 - [x] Add `docs/sony-location-profile-spec.md` with a truth table for completed discovery, service ownership, required properties, protocol-version combinations, DD21 valid 6/7-byte framing plus wrong-length/prefix/flag/reserved/read-error cases, support-registry overrides, experimental approval, setup, compensation, and cleanup; verify every row has one deterministic profile and permitted operation set.
-- [x] Add `docs/sony-camera-compatibility.md` with model, firmware, advertisement version, discovered profile, DD21 bytes/packet size, Python/iOS status, background status, and evidence-link columns; record only A7C II as a historical baseline while keeping all runtime rows unverified/experimental pending post-refactor qualification.
+- [x] Add `docs/sony-camera-compatibility.md` with model, firmware, advertisement version, discovered profile, DD21 bytes/packet size, Python/iOS status, background status, and evidence-link columns; record only A7C II as a historical baseline while keeping every non-A7C II row unverified/experimental.
 - [x] Add `src/sonygeotag/sony_capabilities.py` with pure descriptor/profile and session-plan types; verify all truth-table rows in `tests/test_sony_capabilities.py`, including wrong service, wrong properties, incomplete discovery, unknown version, and unsupported-registry cases.
 - [x] Add Swift equivalents such as `SonyLocationProfile.swift` and `SonyLocationSessionPlan.swift`; add them to the app target and test target in `project.pbxproj`, include them explicitly in `just ios-smoke`, and verify the same truth-table cases in XCTest/smoke tests.
 - [x] Add a `source-line-check` recipe covering Python and Swift program sources, include it in `just check`, and verify it fails on a temporary >1000-line fixture but passes the repository.
@@ -136,37 +140,24 @@ Success means protocol behavior is selected from completed service/characteristi
 - [x] Update view state and diagnostics to show detected camera identity, verified/experimental/unsupported confidence, modern/legacy profile, packet size, pairing state, cleanup failure, and actionable retry/cancel behavior instead of a fixed A7C II target; verify loading, confirmation, unsupported, connected, disconnect, and retry UI states without relying on color alone.
 - [x] Keep `CameraBLEManager.swift` below 1000 lines by extracting profile, identity, planning, and executor seams; verify `just source-line-check` and `just check`.
 
-### Phase 5 — Re-qualify A7C II before expansion
+### Phase 5 — Re-qualify A7C II physically
 
 - [x] Run the sanitized A7C II compatibility snapshot and confirm its resolved modern profile, DD characteristic properties, seven-byte DD21 value, and 95-byte mode match `docs/a7c2-ble-map.md`; perform no writes in this task.
 - [x] With separate explicit user authorization and approved coordinates, run one bounded Python A7C II foreground session, capture a new HEIF while DD11 updates remain active, and record passing EXIF evidence with the standard tool.
-- [ ] With separate explicit user authorization and approved current-phone/test coordinates, repeat the foreground write through iOS, capture a separate new JPEG or HEIF image during the active session, and record passing EXIF evidence; do not begin A7 III writes until both A7C II regressions pass.
+- [ ] With separate explicit user authorization and approved current-phone/test coordinates, repeat the foreground write through iOS, capture a separate new JPEG or HEIF image during the active session, and record passing EXIF evidence.
 
-### Phase 6 — Qualify A7 III
+### Phase 6 — Validate non-A7C II paths without physical cameras
 
-- [ ] Capture a sanitized read-only A7 III snapshot, recording model, firmware, advertisement protocol version, DD service ownership/properties, and DD21 bytes; verify the resolver selects legacy only for a known `< 65` complete legacy shape and otherwise follows observed capabilities.
-- [ ] Compare the observed profile with `third_party/ILCE7M3ExternalGps/PROTOCOL_EN.md`, add only useful new source notes to `third_party/references.md`, and resolve any mismatch before an experimental write.
-- [ ] With separate explicit user authorization, run one bounded Python A7 III write using `--allow-experimental` and approved coordinates, then record new-photo EXIF, packet size, and operation order for that firmware/profile.
-- [ ] With separate explicit user authorization, repeat through iOS after reviewing the experimental identity/profile confirmation, then record a separate new-photo EXIF result; promote only that exact A7 III firmware/protocol/profile after both platforms pass.
-- [ ] If protocol-`< 65` hardware is unavailable, keep legacy physical status unverified and obtain explicit user acceptance of the documented deferral before plan completion; fixture coverage alone must not produce a verified legacy label.
+- [x] Cover modern and legacy resolution, operation order, malformed DD21 rejection, compensation, and experimental approval isolation with Python and Swift fixtures using A7 III, A7 IV, and A6700 identities where model-specific identity is relevant.
+- [x] Compare the fixture-backed legacy assumptions with `third_party/ILCE7M3ExternalGps/PROTOCOL_EN.md` and record useful findings and document errors in `third_party/references.md` without treating that source as hardware proof.
+- [x] Keep A7 III, A7 IV, A6700, A7R V, A7S III, A1, ZV-E1, and ZV-E10 II present only as experimental/unverified compatibility candidates; verify no non-A7C II exact identity is promoted in the verified registry.
+- [x] Update README/user-facing support text to distinguish exact verified evidence, experimental capability matches, unsupported registry entries, and unverified background behavior; verify no family-wide claim exceeds the compatibility matrix.
 
-### Phase 7 — Qualify A7 IV, then A6700
+### Phase 7 — Final verification and handoff
 
-- [ ] Complete the full A7 IV sequence—sanitized snapshot, profile review, separately authorized Python write/EXIF, and separately authorized iOS write/EXIF—before promoting its exact firmware/profile.
-- [ ] After A7 IV is complete, run the same full sequence independently for A6700; do not inherit A7 IV or A7C II status even if the modern profile matches.
-- [x] Re-run the automated A7C II modern and A7 III legacy/modern fixtures after both additions; verify registry changes do not alter capability resolution or experimental gating.
-
-### Phase 8 — Expand the verified matrix
-
-- [ ] Qualify A7R V, A7S III, and A1 one at a time using the same sanitized snapshot → profile review → separately authorized Python write/EXIF → separately authorized iOS write/EXIF sequence; create separate firmware/profile rows and do not batch-promote the Alpha family.
-- [ ] Qualify ZV-E1 and ZV-E10 II one at a time with the same sequence; keep every other ZV model unverified until it receives an explicit row and independent evidence.
-- [x] Update README/user-facing support text to distinguish exact verified model+firmware profiles, experimental capability matches, unsupported registry entries, and unverified background behavior; verify no family-wide claim exceeds the compatibility matrix.
-
-### Phase 9 — Final verification and handoff
-
-- [x] Run `just check`; record Python lint/type/test, iOS smoke/typecheck/project lint/build/unit/UI results, source-line gate, and leave any unavailable physical-model or legacy-profile checks explicitly open unless the user accepts a documented deferral.
+- [x] Run `just check`; record Python lint/type/test, iOS smoke/typecheck/project lint/build/unit/UI results, and the source-line gate.
 - [x] Audit every unsupported/pre-approval path for zero subscriptions/application writes, every post-setup failure for bounded compensation, every evidence artifact for redaction, and the final diff with `git diff --check`.
-- [ ] Review the compatibility matrix against sanitized snapshots and per-platform EXIF evidence, then archive this plan only after every named model is complete and any unavailable A7 III legacy-hardware validation has an explicit accepted deferral.
+- [ ] Review the compatibility matrix against the A7C II sanitized snapshot and per-platform EXIF evidence, then archive this plan after the A7C II iOS regression and final checks pass; non-A7C II physical qualification is not a completion requirement.
 
 ## Verification Record
 
@@ -175,7 +166,8 @@ Success means protocol behavior is selected from completed service/characteristi
 - 2026-08-09: a fresh Python 3.12 virtual environment installed the built wheel with runtime dependencies and `sonygeotag --help` exposed `verify-exif` successfully.
 - 2026-08-09: `git diff --check` passed and independent reviewers audited approval, timeout, compensation, reconnect intent, readiness, and diagnostics-redaction paths.
 - 2026-08-09: the initial default sanitized A7C II snapshot returned `No target found`; after the camera became available and stale host/camera pairings were cleared, fresh pairing succeeded. The captured `ILCE-7CM2` firmware `2.01`, protocol `101` snapshot resolved modern service-owned DD11/DD21/DD30/DD31 properties and `06 10 00 9c 02 00 00` / 95-byte mode, matching the historical baseline; see `docs/compatibility/ilce-7cm2-2.01.md`.
-- 2026-08-09: after explicit authorization for `25.033964, 121.564468`, the A7C II Python modern session accepted three 95-byte DD11 updates during a 60-second active window, completed DD31/DD30 cleanup, displayed the matching DMS coordinate on camera, and a camera-native HEIF passed the standard verifier with capture time `2026-08-09T23:19:05+08:00`; see the sanitized evidence file. iOS and other-model physical qualifications remain open.
+- 2026-08-09: after explicit authorization for `25.033964, 121.564468`, the A7C II Python modern session accepted three 95-byte DD11 updates during a 60-second active window, completed DD31/DD30 cleanup, displayed the matching DMS coordinate on camera, and a camera-native HEIF passed the standard verifier with capture time `2026-08-09T23:19:05+08:00`; see the sanitized evidence file. The A7C II iOS regression remains open.
+- 2026-08-10: plan scope was narrowed so A7C II is the only model requiring physical-camera validation; all other named models remain automated-fixture candidates with experimental/unverified status.
 - 2026-08-10: final review/hardening made registry matching exact (no nil-field wildcards), rejected duplicate GATT UUID ambiguity, accepted NUL-padded iOS identity values, terminally disconnected unsupported profiles, rejected stale CoreBluetooth callbacks, failed closed when Bluetooth disappears with possible controls, preserved incomplete-cleanup diagnostics, normalized EXIF fractional-second rollover, and reset the dedicated simulator between XCTest hosts. `just check` passed 123 Python tests, 58 iOS unit tests, 17 iOS UI tests, both iOS builds, smoke/type/project checks, and the 52-file source-line gate.
 
 ## Completion Checklist
@@ -184,12 +176,11 @@ Success means protocol behavior is selected from completed service/characteristi
 - [x] Only evidence-backed 6/7-byte DD21 framing produces DD11; every wrong-length/prefix/flag/reserved/read-error case blocks DD11, and partial modern setup performs only required compensation in verified order.
 - [x] Ordinary and experimental location sessions never send EE01; pairing initialization requires a separate explicit action.
 - [x] Unsupported and pre-approval experimental paths perform no notification subscription or application-level GATT write and present an actionable reason.
-- [ ] A7C II retains its modern 95-byte behavior and passes explicitly authorized Python plus iOS foreground EXIF regression before another model is written.
-- [ ] A7 III has exact firmware/profile Python and iOS EXIF evidence; protocol-`< 65` legacy status is either physically verified or explicitly accepted as an unverified deferral.
-- [ ] A7 IV and A6700 each have independent sanitized snapshots and Python/iOS EXIF evidence.
-- [ ] A7R V, A7S III, A1, ZV-E1, and ZV-E10 II each have independent compatibility rows and Python/iOS EXIF evidence.
+- [ ] A7C II retains its modern 95-byte behavior and passes explicitly authorized Python plus iOS foreground EXIF regressions.
+- [x] Non-A7C II modern/legacy execution and safety behavior is covered by automated Python and Swift fixtures without being represented as physical-camera proof.
+- [x] A7 III, A7 IV, A6700, A7R V, A7S III, A1, ZV-E1, and ZV-E10 II remain experimental/unverified, with no physical snapshot, write, EXIF evidence, or verified-registry promotion required by this plan.
 - [x] Diagnostics and documentation show sanitized model/firmware, protocol, profile, DD21 mode, packet size, confidence, approval, operation order, and cleanup status without peripheral IDs, addresses, manufacturer tails, or other sensitive BLE data.
 - [x] Scanned, direct-reconnect, and CoreBluetooth-restored iOS sessions resolve or invalidate persisted protocol context safely before any subscription/write.
 - [x] Real Python writes expose neither packet-mode nor cleanup-suppression overrides; DD21 controls packet size and bounded cleanup is mandatory.
 - [x] Every Python and Swift program source remains below 1000 lines under an automated `just check` gate.
-- [ ] `just check` and `git diff --check` pass, required deferrals are explicitly accepted, and the completed plan is archived.
+- [ ] The A7C II iOS EXIF evidence is recorded, `just check` and `git diff --check` pass, and the completed plan is archived.
