@@ -141,3 +141,6 @@ dmypy.json
 xcuserdata/
 *.xcuserstate
 DerivedData/
+
+# Project
+third_party/
