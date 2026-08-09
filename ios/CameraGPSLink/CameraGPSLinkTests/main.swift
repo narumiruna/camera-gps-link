@@ -85,4 +85,50 @@ let noTimezonePacket = try SonyProtocol.encodeLocationPacket(
 require(noTimezonePacket.count == 91, "Non-timezone DD11 packet should be 91 bytes")
 require(noTimezonePacket.prefix(6) == Data([0x00, 0x59, 0x08, 0x02, 0xFC, 0x00]), "91-byte DD11 header should match")
 
+func sonyDescriptor(_ uuid: String, _ properties: Set<SonyGattProperty>) -> SonyGattDescriptor {
+    SonyGattDescriptor(
+        serviceUUID: SonyProtocol.locationServiceUUID,
+        characteristicUUID: uuid,
+        properties: properties
+    )
+}
+
+let modernDescriptors = [
+    sonyDescriptor(SonyProtocol.locationDataWriteUUID, [.write]),
+    sonyDescriptor(SonyProtocol.locationConfigReadUUID, [.read]),
+    sonyDescriptor(SonyProtocol.locationLockUUID, [.write]),
+    sonyDescriptor(SonyProtocol.locationEnableUUID, [.write]),
+    sonyDescriptor(SonyProtocol.locationStatusNotifyUUID, [.notify]),
+]
+let modernProfile = SonyLocationCapabilityResolver.resolve(
+    protocolVersion: 101,
+    descriptors: modernDescriptors,
+    discoveryComplete: true
+)
+require(modernProfile.kind == .modern, "Complete protocol-101 shape should resolve modern")
+require(
+    SonyLocationSessionPlan.make(profile: modernProfile).setup.map(\.name)
+        == ["DD01 notify", "DD30 lock", "DD31 enable", "DD21 config"],
+    "Modern plan should preserve safe setup order"
+)
+
+let legacyProfile = SonyLocationCapabilityResolver.resolve(
+    protocolVersion: 64,
+    descriptors: Array(modernDescriptors.prefix(2)),
+    discoveryComplete: true
+)
+require(legacyProfile.kind == .legacy, "Protocol-64 DD11/DD21 shape should resolve legacy")
+require(
+    SonyLocationSessionPlan.make(profile: legacyProfile).setup.map(\.name) == ["DD21 config"],
+    "Legacy plan must never enqueue modern controls"
+)
+require(
+    (try? SonyLocationCapabilityResolver.parseDD21(Data([0x06, 0x10, 0x00, 0x9C, 0x02, 0x00, 0x00])))?.packetSize == 95,
+    "Strict seven-byte DD21 should select 95 bytes"
+)
+require(
+    (try? SonyLocationCapabilityResolver.parseDD21(Data([0x06, 0x10, 0x00, 0x9C, 0x04, 0x00]))) == nil,
+    "Unknown DD21 flags must fail closed"
+)
+
 print("iOS smoke test passed")

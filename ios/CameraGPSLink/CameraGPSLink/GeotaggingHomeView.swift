@@ -213,7 +213,7 @@ struct GeotaggingHomeView<Diagnostics: View>: View {
         switch state.phase {
         case .ready:
             "checkmark.circle.fill"
-        case .needsAttention:
+        case .needsAttention, .approvalRequired, .unsupported:
             "exclamationmark.triangle.fill"
         case .searching, .connecting, .preparing, .sendingFirstLocation, .requestingPermission, .stopping:
             "arrow.triangle.2.circlepath"
@@ -228,7 +228,7 @@ struct GeotaggingHomeView<Diagnostics: View>: View {
         switch state.phase {
         case .ready:
             .green
-        case .needsAttention:
+        case .needsAttention, .approvalRequired, .unsupported:
             .orange
         default:
             .accentColor

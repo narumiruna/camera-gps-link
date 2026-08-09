@@ -2,7 +2,7 @@
 
 Sony Alpha BLE geotagging tools plus an iOS MVP for keeping a camera's GPS cache updated from phone location data.
 
-Current verified target: Sony A7C II / `ILCE-7CM2`.
+Historical verified baseline: Sony A7C II / `ILCE-7CM2` firmware `2.01`, protocol `101`, modern 95-byte profile. Other listed models are unverified; only a camera whose discovered shape is executable is labeled experimental. Exact post-refactor status is tracked in [`docs/sony-camera-compatibility.md`](docs/sony-camera-compatibility.md).
 
 ## What this repo contains
 
@@ -16,7 +16,7 @@ Most probe commands are read-only apart from normal BLE connection/subscription 
 
 `camera-info` is stricter: it only scans, connects, discovers services, reads characteristics, and disconnects. It never calls an application-level GATT write or subscribes to notifications. `--pair` may ask the OS to establish BLE security, but does not authorize Sony vendor writes.
 
-`send-location` is a dry run unless `--write` is present. With `--write`, it performs the known Sony `DD30`/`DD31`/`DD11` location flow and writes GPS data to the camera. Do not write arbitrary payloads to the camera.
+`send-location` is a dry run unless `--write` is present. A real request completes identity and characteristic discovery first, selects a capability-driven modern or legacy profile, validates strict `DD21`, and always compensates controls it acquired. Experimental identities stop read-only on the first request; repeat with `--allow-experimental` only after reviewing the detected model, firmware, protocol, and profile. Do not write arbitrary payloads to the camera.
 
 ## Requirements
 
@@ -147,15 +147,44 @@ uv run sonygeotag send-location \
   --lon 139.767125 \
   --write \
   --duration 60 \
-  --pair \
-  --vendor-pair-init
+  --pair
 ```
 
 Useful notes:
 
-- The app/CLI proactively writes `DD11`; the camera uses its latest cached GPS fix for newly captured photos.
-- `DD21` determines whether to use the 95-byte timezone-capable packet or the 91-byte packet.
-- Successful A7C II tests accepted the modern unlock flow and wrote GPS EXIF for newly captured photos.
+- The app/CLI proactively writes `DD11`; capture photos while the location session is active. A bounded CLI session disables DD31 and unlocks DD30 on exit, so a packet accepted just before cleanup does not prove a later photo will retain that fix.
+- Strict 6/7-byte `DD21` determines whether to use the 95-byte timezone-capable packet or the 91-byte packet; malformed or unreadable values block `DD11`.
+- Cleanup cannot be disabled. Modern sessions compensate only controls that were acquired; legacy sessions never touch `DD30`/`DD31`.
+- Ordinary and experimental location sessions never write `EE01`. `sonygeotag pair-init` is a separate dry-run-by-default pairing action and must run while the camera is visibly waiting for pairing, after the OS Bluetooth bond has completed. Finish pairing, return to shooting mode, and then start an ordinary location session.
+- Successful A7C II baseline tests accepted the modern flow and wrote GPS EXIF for newly captured photos. A fresh cross-platform regression remains required after this refactor.
+
+For an unverified camera, first capture a read-only snapshot:
+
+```bash
+uv run sonygeotag compatibility-snapshot --target ILCE-7M3 --pair
+uv run sonygeotag compatibility-snapshot --target ILCE-7M4 --pair
+uv run sonygeotag compatibility-snapshot --target ILCE-6700 --pair
+```
+
+The same command accepts `ILCE-7RM5`, `ILCE-7SM3`, `ILCE-1`, `ZV-E1`, or `ZV-E10M2`. A first experimental `send-location --write` remains read-only and prints an approval key. After separate authorization and review, repeat with both `--allow-experimental --approval-key <printed-key>`; a key cannot authorize another model, firmware, protocol, or profile.
+
+For explicit first-time pairing initialization, first complete the OS Bluetooth bond, leave the camera on its pairing screen, and run `pair-init`. The first request is dry-run/read-only and prints an identity/profile-scoped key when experimental approval is required:
+
+```bash
+uv run sonygeotag pair-init --target ILCE-7CM2 --pair --write
+```
+
+Review the identity/profile, repeat with `--allow-experimental --approval-key <printed-key>`, return the camera to shooting mode, and use the ordinary `send-location` command. Pairing and location remain separate sessions.
+
+Verify a newly captured JPEG or HEIF image without committing the photo:
+
+```bash
+uv run sonygeotag verify-exif \
+  --photo new-photo.jpg \
+  --lat 35.681236 \
+  --lon 139.767125 \
+  --not-before 2026-08-09T12:34:56+09:00
+```
 
 ## iOS app
 
@@ -174,11 +203,12 @@ open ios/CameraGPSLink/CameraGPSLink.xcodeproj
 The iPhone interface is organized around the shooting workflow:
 
 - **Start Geotagging**, visible connection stages, foreground cancellation, bounded waits, and actionable Retry.
+- Detected model/firmware/protocol/profile resolution plus an explicit experimental confirmation before any subscription or write.
 - **Ready to Geotag** only after the camera receives the first successful location update in the current session.
 - A compact Readiness summary for camera, iPhone location, and the last camera update.
 - Applied Link Settings for While Open/Background availability and Battery Saver/Best Accuracy updates, with a concrete preview and side-effect-free cancellation.
 - Explicit partial-state recovery when Background is selected without Always Location permission.
-- A separate Diagnostics screen preserving DD11/DD21, reconnect, remembered-device, location, and bounded debug-log details with a coordinate privacy warning.
+- A separate Diagnostics screen preserving sanitized DD11/DD21, profile, confidence, pairing, cleanup, reconnect, location, and bounded debug-log details with no exported peripheral identifier.
 - CoreBluetooth restoration/pending reconnect and best-effort Background App Refresh, subject to iOS background limits.
 
 See `ios/CameraGPSLink/README.md` for the complete workflow, settings effects, permission states, diagnostics privacy, testing, and platform limitations.
@@ -219,7 +249,8 @@ justfile                 Local command shortcuts
 
 ## Limitations
 
-- A7C II / `ILCE-7CM2` is the only verified target so far.
+- The exact A7C II row is historical evidence only; runtime confidence remains experimental until its post-refactor Python/iOS foreground regression receives explicit physical-write authorization and passes.
+- A7 III, A7 IV, A6700, A7R V, A7S III, A1, ZV-E1, and ZV-E10 II remain experimental/unverified until the compatibility matrix links independent evidence.
 - BLE behavior may differ across Sony models and firmware versions.
 - iOS background delivery is opportunistic; force-quitting the app can prevent background relaunch.
 - The native iOS target currently supports iPhone on iOS 17 or later in portrait and landscape.

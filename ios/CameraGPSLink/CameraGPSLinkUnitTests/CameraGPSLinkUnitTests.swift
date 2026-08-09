@@ -88,6 +88,267 @@ final class DiagnosticsLogStoreTests: XCTestCase {
         XCTAssertEqual(store.lines, ["second", "third"])
         XCTAssertEqual(store.copyText, "second\nthird")
     }
+
+    func testExportRedactsPeripheralIdentifiersAddressesAndManufacturerTails() {
+        let store = DiagnosticsLogStore()
+        store.append("Remembered 00000000-1111-2222-3333-444444444444 at aa:bb:cc:dd:ee:ff")
+        store.append("manufacturer_data=03 00 65 00 de ad be ef")
+        store.append("DD11 location OK 35.6812360, 139.7671250")
+        store.append("DD01 notify ba ad f0 0d")
+
+        XCTAssertFalse(store.copyText.contains("00000000-1111"))
+        XCTAssertFalse(store.copyText.contains("aa:bb:cc"))
+        XCTAssertFalse(store.copyText.contains("de ad be ef"))
+        XCTAssertFalse(store.copyText.contains("35.6812360"))
+        XCTAssertFalse(store.copyText.contains("ba ad f0 0d"))
+        XCTAssertTrue(store.copyText.contains("[REDACTED]"))
+    }
+}
+
+final class SonyLocationProfileTests: XCTestCase {
+    private func descriptor(
+        _ uuid: String,
+        _ properties: Set<SonyGattProperty>,
+        service: String = SonyProtocol.locationServiceUUID
+    ) -> SonyGattDescriptor {
+        SonyGattDescriptor(serviceUUID: service, characteristicUUID: uuid, properties: properties)
+    }
+
+    private func legacyShape() -> [SonyGattDescriptor] {
+        [
+            descriptor(SonyProtocol.locationDataWriteUUID, [.write]),
+            descriptor(SonyProtocol.locationConfigReadUUID, [.read]),
+        ]
+    }
+
+    private func modernShape() -> [SonyGattDescriptor] {
+        legacyShape() + [
+            descriptor(SonyProtocol.locationLockUUID, [.write]),
+            descriptor(SonyProtocol.locationEnableUUID, [.write]),
+            descriptor(SonyProtocol.locationStatusNotifyUUID, [.notify]),
+        ]
+    }
+
+    func testResolverCoversModernLegacyExperimentalAndIncompleteShapes() {
+        XCTAssertEqual(
+            SonyLocationCapabilityResolver.resolve(
+                protocolVersion: 101,
+                descriptors: modernShape(),
+                discoveryComplete: true
+            ).kind,
+            .modern
+        )
+        XCTAssertEqual(
+            SonyLocationCapabilityResolver.resolve(
+                protocolVersion: 64,
+                descriptors: legacyShape(),
+                discoveryComplete: true
+            ).kind,
+            .legacy
+        )
+        let unknownModern = SonyLocationCapabilityResolver.resolve(
+            protocolVersion: nil,
+            descriptors: modernShape(),
+            discoveryComplete: true
+        )
+        XCTAssertEqual(unknownModern.kind, .modern)
+        XCTAssertTrue(unknownModern.experimental)
+        XCTAssertEqual(
+            SonyLocationCapabilityResolver.resolve(
+                protocolVersion: 101,
+                descriptors: modernShape(),
+                discoveryComplete: false
+            ).kind,
+            .unsupported
+        )
+    }
+
+    func testResolverRejectsWrongServicePropertiesAndVersionShapes() {
+        let wrongService = [
+            descriptor(
+                SonyProtocol.locationDataWriteUUID,
+                [.write],
+                service: SonyProtocol.remoteControlServiceUUID
+            ),
+            descriptor(SonyProtocol.locationConfigReadUUID, [.read]),
+        ]
+        XCTAssertEqual(
+            SonyLocationCapabilityResolver.resolve(
+                protocolVersion: 101,
+                descriptors: wrongService,
+                discoveryComplete: true
+            ).kind,
+            .unsupported
+        )
+        var wrongWrite = modernShape()
+        wrongWrite[0] = descriptor(SonyProtocol.locationDataWriteUUID, [.writeWithoutResponse])
+        XCTAssertEqual(
+            SonyLocationCapabilityResolver.resolve(
+                protocolVersion: 101,
+                descriptors: wrongWrite,
+                discoveryComplete: true
+            ).kind,
+            .unsupported
+        )
+        XCTAssertEqual(
+            SonyLocationCapabilityResolver.resolve(
+                protocolVersion: 64,
+                descriptors: modernShape(),
+                discoveryComplete: true
+            ).kind,
+            .unsupported
+        )
+        XCTAssertEqual(
+            SonyLocationCapabilityResolver.resolve(
+                protocolVersion: nil,
+                descriptors: legacyShape(),
+                discoveryComplete: true
+            ).kind,
+            .unsupported
+        )
+    }
+
+    func testDD21StrictFramingCoversBothSizesAndMalformedVariants() throws {
+        XCTAssertEqual(
+            try SonyLocationCapabilityResolver.parseDD21(Data([0x06, 0x10, 0x00, 0x9C, 0x02, 0x00])).packetSize,
+            95
+        )
+        XCTAssertEqual(
+            try SonyLocationCapabilityResolver.parseDD21(Data([0x06, 0x10, 0x00, 0x9C, 0x00, 0x00, 0x00])).packetSize,
+            91
+        )
+        for malformed in [
+            Data(),
+            Data([0x06, 0x10, 0x00, 0x9C, 0x02]),
+            Data([0x06, 0x10, 0x00, 0x9C, 0x02, 0x00, 0x00, 0x00]),
+            Data([0x05, 0x10, 0x00, 0x9C, 0x02, 0x00]),
+            Data([0x06, 0x10, 0x00, 0x9C, 0x04, 0x00]),
+            Data([0x06, 0x10, 0x00, 0x9C, 0x02, 0x01]),
+        ] {
+            XCTAssertThrowsError(try SonyLocationCapabilityResolver.parseDD21(malformed))
+        }
+    }
+
+    func testSessionExecutorAndCompensationPreserveSafeOrder() {
+        let profile = SonyLocationCapabilityResolver.resolve(
+            protocolVersion: 101,
+            descriptors: modernShape(),
+            discoveryComplete: true
+        )
+        let plan = SonyLocationSessionPlan.make(profile: profile)
+        var executed: [String] = []
+        DefaultSonyLocationSessionExecutor().execute(plan: plan) { executed.append($0.name) }
+        XCTAssertEqual(executed, ["DD01 notify", "DD30 lock", "DD31 enable", "DD21 config"])
+
+        var acquisition = SonyLocationAcquisition()
+        acquisition.recordAttempt(actionName: "DD30 lock")
+        XCTAssertEqual(acquisition.compensation.map(\.name), ["DD30 unlock"])
+        acquisition.recordAttempt(actionName: "DD31 enable")
+        XCTAssertEqual(acquisition.compensation.map(\.name), ["DD31 disable", "DD30 unlock"])
+        acquisition.recordAttempt(actionName: "DD01 notify")
+        XCTAssertEqual(
+            acquisition.compensation.map(\.name),
+            ["DD31 disable", "DD30 unlock", "DD01 notify stop"]
+        )
+
+        let legacy = SonyLocationAcquisition()
+        XCTAssertTrue(legacy.compensation.isEmpty)
+    }
+
+    func testValidatedRecordRequiresFreshIdentityProfileAndDescriptorMatch() {
+        let descriptors = modernShape()
+        let identity = SonyCameraIdentity(model: "ILCE-7CM2", firmware: "2.01", protocolVersion: 101)
+        let profile = SonyLocationCapabilityResolver.resolve(
+            protocolVersion: 101,
+            descriptors: descriptors,
+            discoveryComplete: true
+        )
+        let record = SonyValidatedIdentityRecord(
+            peripheralID: "private-id",
+            identity: identity,
+            profile: .modern,
+            descriptorFingerprint: SonyLocationCapabilityResolver.descriptorFingerprint(descriptors)
+        )
+
+        XCTAssertTrue(
+            record.matches(
+                peripheralID: "private-id",
+                identity: identity,
+                profile: profile,
+                descriptors: descriptors
+            )
+        )
+        XCTAssertFalse(
+            record.matches(
+                peripheralID: "other-id",
+                identity: identity,
+                profile: profile,
+                descriptors: descriptors
+            )
+        )
+        XCTAssertFalse(
+            record.matches(
+                peripheralID: "private-id",
+                identity: SonyCameraIdentity(model: "ILCE-7CM2", firmware: nil, protocolVersion: 101),
+                profile: profile,
+                descriptors: descriptors
+            )
+        )
+    }
+
+    func testUnsupportedCompatibilityEntryBlocksAnExecutableShape() {
+        let identity = SonyCameraIdentity(model: "ILCE-7M4", firmware: "4.00", protocolVersion: 101)
+        let executable = SonyLocationCapabilityResolver.resolve(
+            protocolVersion: 101,
+            descriptors: modernShape(),
+            discoveryComplete: true
+        )
+        let compatibility = SonyLocationCapabilityResolver.compatibility(
+            identity: identity,
+            profile: executable,
+            unsupportedEntries: [
+                SonyCompatibilityEntry(
+                    model: "LE_ILCE-7M4",
+                    firmware: "4.00",
+                    protocolVersion: 101,
+                    profile: .modern,
+                    confidence: .unsupported,
+                    evidence: "blocked-fixture"
+                ),
+            ]
+        )
+        let blocked = SonyLocationCapabilityResolver.resolve(
+            protocolVersion: 101,
+            descriptors: modernShape(),
+            discoveryComplete: true,
+            registryConfidence: compatibility.confidence
+        )
+
+        XCTAssertEqual(compatibility.confidence, .unsupported)
+        XCTAssertEqual(blocked.kind, .unsupported)
+    }
+
+    func testHistoricalA7C2IdentityRemainsExperimentalUntilRequalified() {
+        let profile = SonyLocationCapabilityResolver.resolve(
+            protocolVersion: 101,
+            descriptors: modernShape(),
+            discoveryComplete: true
+        )
+        XCTAssertEqual(
+            SonyLocationCapabilityResolver.compatibility(
+                identity: SonyCameraIdentity(model: "LE_ILCE-7CM2", firmware: "2.01", protocolVersion: 101),
+                profile: profile
+            ).confidence,
+            .experimental
+        )
+        XCTAssertEqual(
+            SonyLocationCapabilityResolver.compatibility(
+                identity: SonyCameraIdentity(model: "ILCE-7CM2", firmware: nil, protocolVersion: 101),
+                profile: profile
+            ).confidence,
+            .experimental
+        )
+    }
 }
 
 final class LinkSettingsTests: XCTestCase {
@@ -286,7 +547,7 @@ final class GeotaggingViewStateTests: XCTestCase {
 
         XCTAssertEqual(state.phase, .needsAttention)
         XCTAssertEqual(state.title, "Location Update Delayed")
-        XCTAssertEqual(state.primaryAction, .retry)
+        XCTAssertEqual(state.primaryAction, .sendNow)
     }
 
     func testStoppedStateOffersStartAgain() {
@@ -295,6 +556,29 @@ final class GeotaggingViewStateTests: XCTestCase {
         XCTAssertEqual(state.phase, .stopped)
         XCTAssertEqual(state.primaryAction, .start)
         XCTAssertEqual(state.primaryActionLabel, "Start Geotagging")
+    }
+
+    func testExperimentalProfileRequiresExplicitContinueAndOffersCancel() {
+        let state = GeotaggingViewState.make(
+            from: .fixture(cameraState: .awaitingApproval, hasLocation: true),
+            now: now
+        )
+
+        XCTAssertEqual(state.phase, .approvalRequired)
+        XCTAssertEqual(state.primaryAction, .approveExperimental)
+        XCTAssertEqual(state.secondaryAction, .cancel)
+        XCTAssertTrue(state.message.contains("Experimental") || state.title.contains("Experimental"))
+    }
+
+    func testUnsupportedProfileShowsReasonAndSafeCancel() {
+        let state = GeotaggingViewState.make(
+            from: .fixture(cameraState: .unsupported, transientError: "DD11 lacks write-with-response."),
+            now: now
+        )
+
+        XCTAssertEqual(state.phase, .unsupported)
+        XCTAssertEqual(state.primaryAction, .cancel)
+        XCTAssertEqual(state.message, "DD11 lacks write-with-response.")
     }
 
     func testBackgroundPermissionIsPartialRatherThanReady() {
@@ -402,12 +686,40 @@ final class CameraGPSLinkAppModelTests: XCTestCase {
         let camera = FakeCameraService()
         let location = FakeLocationService(permission: .always)
         let model = makeModel(camera: camera, location: location, settings: settings)
+        model.startGeotagging()
+        let startsBeforeSceneChange = location.starts
 
         model.handleScenePhase(isForeground: true)
         model.handleScenePhase(isForeground: true)
 
         XCTAssertEqual(camera.backgroundResumes, 1)
-        XCTAssertEqual(location.starts, 1)
+        XCTAssertEqual(location.starts, startsBeforeSceneChange + 1)
+    }
+
+    func testPersistedActiveIntentAllowsBackgroundResumeAfterModelRelaunch() {
+        let settings = LinkSettings(connectionAvailability: .continueInBackground, locationUpdates: .batterySaver)
+        let camera = FakeCameraService()
+        camera.snapshot.activeLinkIntent = true
+        let location = FakeLocationService(permission: .always)
+        let model = makeModel(camera: camera, location: location, settings: settings)
+
+        model.handleScenePhase(isForeground: false)
+
+        XCTAssertEqual(camera.backgroundResumes, 1)
+    }
+
+    func testStopPreventsLaterSceneChangeFromResumingBackgroundLink() {
+        let settings = LinkSettings(connectionAvailability: .continueInBackground, locationUpdates: .batterySaver)
+        let camera = FakeCameraService()
+        let location = FakeLocationService(permission: .always)
+        let model = makeModel(camera: camera, location: location, settings: settings)
+        model.startGeotagging()
+        model.stopGeotagging()
+
+        model.handleScenePhase(isForeground: false)
+        model.handleScenePhase(isForeground: true)
+
+        XCTAssertEqual(camera.backgroundResumes, 0)
     }
 
     func testApplyPublishesAndConfiguresOnlyFinalSettingsOnce() throws {
@@ -450,6 +762,48 @@ final class CameraGPSLinkAppModelTests: XCTestCase {
         XCTAssertTrue(model.viewState.message.contains("couldn’t be applied"))
     }
 
+    func testStaleOrInvalidCachedLocationIsNotReportedUsable() {
+        let camera = FakeCameraService()
+        camera.snapshot.state = .linked
+        let location = FakeLocationService(permission: .whenInUse)
+        location.snapshot.currentLocation = CLLocation(
+            coordinate: CLLocationCoordinate2D(latitude: 35, longitude: 139),
+            altitude: 0,
+            horizontalAccuracy: -1,
+            verticalAccuracy: 1,
+            timestamp: Date(timeIntervalSince1970: 9_990)
+        )
+
+        let model = makeModel(camera: camera, location: location)
+
+        XCTAssertEqual(model.viewState.phase, .waitingForLocation)
+        XCTAssertFalse(model.viewState.readiness.first(where: { $0.id == "location" })?.isReady ?? true)
+    }
+
+    func testTimeDerivedReadinessDegradesWithoutServicePublication() {
+        var clock = Date(timeIntervalSince1970: 10_000)
+        let camera = FakeCameraService()
+        camera.snapshot.state = .linked
+        camera.snapshot.packetsSent = 1
+        camera.snapshot.lastSentAt = clock
+        let location = FakeLocationService(permission: .whenInUse)
+        location.snapshot.currentLocation = CLLocation(
+            coordinate: CLLocationCoordinate2D(latitude: 35, longitude: 139),
+            altitude: 0,
+            horizontalAccuracy: 5,
+            verticalAccuracy: 5,
+            timestamp: clock
+        )
+        let model = makeModel(camera: camera, location: location, now: { clock })
+        XCTAssertEqual(model.viewState.phase, .ready)
+
+        clock = clock.addingTimeInterval(301)
+        model.refreshTimeDerivedState()
+
+        XCTAssertNotEqual(model.viewState.phase, .ready)
+        XCTAssertFalse(model.viewState.readiness.first(where: { $0.id == "location" })?.isReady ?? true)
+    }
+
     func testBackgroundPermissionRequestIsExplicit() {
         let camera = FakeCameraService()
         let location = FakeLocationService(permission: .whenInUse)
@@ -464,14 +818,15 @@ final class CameraGPSLinkAppModelTests: XCTestCase {
         camera: FakeCameraService,
         location: FakeLocationService,
         settings: LinkSettings = .default,
-        settingsStore: FakeSettingsStore? = nil
+        settingsStore: FakeSettingsStore? = nil,
+        now: @escaping () -> Date = { Date(timeIntervalSince1970: 10_000) }
     ) -> CameraGPSLinkAppModel {
         CameraGPSLinkAppModel(
             cameraService: camera,
             locationService: location,
             settingsStore: settingsStore ?? FakeSettingsStore(settings: settings),
             diagnosticsStore: DiagnosticsLogStore(),
-            now: { Date(timeIntervalSince1970: 10_000) },
+            now: now,
             openSettings: {}
         )
     }
@@ -494,6 +849,10 @@ private final class FakeCameraService: CameraLinkServicing {
     func startForegroundLink() { foregroundStarts += 1 }
     func resumeBackgroundLink() { backgroundResumes += 1 }
     func cancelCurrentAttempt() { cancels += 1 }
+    func approveExperimentalProfile() {}
+    func requestPairingInitialization() {}
+    func confirmPairingInitialization() {}
+    func cancelPairingInitialization() {}
     func stopLink() { stops += 1 }
     func sendLocationNow() { sends += 1 }
     func sendLocationIfDue() {}
@@ -560,9 +919,19 @@ private extension CameraServiceSnapshot {
             lastSentAt: nil,
             includeTimezone: true,
             dd21ConfigHex: nil,
+            firmware: nil,
+            protocolVersion: nil,
+            profile: nil,
+            confidence: .experimental,
+            packetSize: nil,
+            experimentalApprovalPending: false,
+            pairingConfirmationPending: false,
+            pairingStatus: "Not requested",
+            cleanupDiagnostic: nil,
+            operationOrder: [],
             lastError: nil,
             pendingReconnectArmed: false,
-            rememberedPeripheralID: nil,
+            activeLinkIntent: false,
             updateInterval: 120
         )
     }

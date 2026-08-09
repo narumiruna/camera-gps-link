@@ -2,7 +2,7 @@
 
 Camera GPS Link sends the iPhone’s current location to a supported camera over Bluetooth so newly captured photos can use the camera’s latest cached GPS fix.
 
-Current verified camera: Sony A7C II / `ILCE-7CM2`.
+Historical verified baseline: Sony A7C II / `ILCE-7CM2` firmware `2.01`, protocol `101`, modern 95-byte profile. Other identities are unverified until discovery; only an executable discovered shape is labeled experimental. See [`../../docs/sony-camera-compatibility.md`](../../docs/sony-camera-compatibility.md).
 
 ## Geotagging workflow
 
@@ -11,8 +11,9 @@ The home screen is organized around shooting readiness rather than BLE protocol 
 1. Turn on the camera and make its Bluetooth location link available.
 2. Tap **Start Geotagging**.
 3. Grant location access when iOS asks. Camera GPS Link does not start the camera write flow before usable permission is available.
-4. Follow the visible stages: looking for the camera, connecting, preparing location, and sending the first location.
-5. Wait for **Ready to Geotag** before taking photos that need location data.
+4. Follow the visible stages: looking for the camera, connecting, identity/profile discovery, preparing location, and sending the first location.
+5. If the exact model/firmware/protocol/profile is unverified, review **Experimental Camera Profile** and choose Continue or Cancel. Cancel performs no subscription or application write.
+6. Wait for **Ready to Geotag** before taking photos that need location data.
 
 **Ready to Geotag** appears only after the camera has successfully received at least one location packet in the current session. The Readiness group separately reports the camera, iPhone location, and last successful camera update.
 
@@ -58,9 +59,9 @@ Background reconnect is shown as **Waiting for Camera**, not as an endless foreg
 
 **Diagnostics** is one level below the home screen and preserves the technical information needed for troubleshooting:
 
-- target and raw BLE state;
-- packets sent, DD11/DD21 configuration, update interval, and pending reconnect;
-- remembered peripheral and last-send time;
+- sanitized detected model, firmware, protocol, modern/legacy profile, and confidence;
+- packets sent, strict DD11/DD21 packet mode, operation order, cleanup status, update interval, and pending reconnect;
+- pairing state and last-send time, without exposing the private remembered peripheral identifier;
 - location permission, mode, coordinate, accuracy, and fix time;
 - a bounded 120-line debug log.
 
@@ -68,16 +69,15 @@ Diagnostic logs can include recent coordinates. Review the warning and log conte
 
 ## Sony protocol behavior
 
-The app retains the verified modern Sony location flow:
+The app resolves behavior from complete Sony CC/DD/EE service discovery and required characteristic properties:
 
-1. subscribe to `DD01` when available;
-2. optionally send the `EE01` pairing initialization;
-3. write `DD30 = 01` and `DD31 = 01`;
-4. read `DD32`, `DD33`, and `DD21` when available;
-5. send periodic `DD11` location packets;
-6. clean up with `DD31 = 00` and `DD30 = 00`.
+- **Modern:** protocol `>=65`, DD11/DD21, and write-with-response DD30/DD31. After approval it optionally subscribes DD01, writes DD30 then DD31, optionally reads DD32/DD33, strictly validates DD21, then sends DD11.
+- **Legacy:** known protocol `<65`, DD11/DD21, and both DD30/DD31 absent. It validates DD21 and sends DD11 without controls or notifications.
+- **Unsupported:** missing/wrong properties, partial controls, inconsistent protocol shape, unknown-version legacy shape, or a blocked registry identity. It performs no subscription or application write.
 
-`DD21` controls whether Camera GPS Link sends the 95-byte timezone-capable packet or the 91-byte packet. Protocol fields remain in Diagnostics rather than the primary shooting workflow.
+Strict DD21 accepts only evidence-backed 6/7-byte framing and controls the 95- or 91-byte DD11 packet. Failure, cancellation, and timeout compensate every dispatched, possibly applied modern control in DD31-then-DD30 order. Cleanup cannot be disabled.
+
+Ordinary and experimental location sessions never send EE01. Diagnostics exposes **Initialize Camera Pairing** as a separate confirmed action after the active location session is stopped; it performs fresh identity/profile discovery and requires experimental approval when applicable before showing the final EE01 confirmation. The camera must be explicitly on its pairing screen.
 
 ## Build and test
 
@@ -103,7 +103,7 @@ Run the complete iOS gate:
 just ios-check
 ```
 
-The XCTest suite covers settings compatibility and rollback, permission sequencing, foreground timeout policy, readiness mapping, cancellation, retries, loading/partial/error states, settings preview/apply/cancel/dismissal, diagnostics, Dynamic Type, light/dark and increased-contrast appearances, reduced motion, accessibility audits, and portrait/landscape layouts. Debug-only launch fixtures make simulator UI tests deterministic and are unavailable in Release builds.
+The XCTest suite covers strict capability/DD21 truth tables, modern/legacy plans and compensation order, exact identity confidence, settings compatibility and rollback, permission sequencing, foreground timeout policy, experimental/unsupported UI, cancellation, retries, loading/partial/error states, settings preview/apply/cancel/dismissal, sanitized diagnostics and pairing confirmation, Dynamic Type, appearances, reduced motion, accessibility audits, and portrait/landscape layouts. Debug-only launch fixtures make simulator UI tests deterministic and are unavailable in Release builds.
 
 A physical iPhone is still required to validate real CoreBluetooth behavior, background restoration, and camera writes. Do not perform a real camera GPS write without explicit authorization.
 
@@ -119,7 +119,8 @@ A physical iPhone is still required to validate real CoreBluetooth behavior, bac
 
 ## Known limitations
 
-- A7C II / `ILCE-7CM2` is the only verified camera.
+- The exact A7C II baseline is historical evidence only; runtime confidence remains experimental until separately authorized post-refactor Python and iOS EXIF regressions pass.
+- A7 III, A7 IV, A6700, A7R V, A7S III, A1, ZV-E1, and ZV-E10 II remain unverified until their exact rows have independent evidence.
 - Background execution is opportunistic and cannot guarantee a fresh location immediately before every shutter release.
 - The app updates the camera’s cached location for new photos; it does not modify existing images.
 - Real BLE and background wake behavior cannot be fully simulated by XCUITest.

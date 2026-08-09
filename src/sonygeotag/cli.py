@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+from pathlib import Path
 from typing import Annotated
 
 import typer
+from bleak.exc import BleakError
 
 from sonygeotag.ble_probe import GattDump
 from sonygeotag.ble_probe import NotificationEvent
@@ -21,10 +23,16 @@ from sonygeotag.ble_probe import read_gatt_values
 from sonygeotag.ble_probe import scan_devices
 from sonygeotag.camera_snapshot import CameraInfoSessionError
 from sonygeotag.camera_snapshot import capture_camera_info
+from sonygeotag.compatibility_snapshot import CompatibilitySnapshotError
+from sonygeotag.compatibility_snapshot import capture_compatibility_snapshot
+from sonygeotag.exif_verify import ExifVerificationError
+from sonygeotag.exif_verify import parse_iso_datetime
+from sonygeotag.exif_verify import verify_image_exif
 from sonygeotag.monitor_tui import run_camera_monitor_tui
 from sonygeotag.sony_info import CameraInfoSnapshot
 from sonygeotag.sony_location import SonyLocationSyncRun
 from sonygeotag.sony_location import create_location_packet
+from sonygeotag.sony_location import initialize_pairing
 from sonygeotag.sony_location import sync_location
 
 app = typer.Typer(help="Sony Alpha BLE geotag protocol probe tools.")
@@ -37,6 +45,15 @@ ConnectTimeoutOption = Annotated[
 DurationOption = Annotated[
     float,
     typer.Option("--duration", "-d", min=1.0, help="Notification listen duration in seconds."),
+]
+LocationDurationOption = Annotated[
+    float,
+    typer.Option(
+        "--duration",
+        "-d",
+        min=1.0,
+        help="Active location-update window in seconds; capture photos before this window closes.",
+    ),
 ]
 TargetOption = Annotated[
     list[str] | None,
@@ -64,6 +81,10 @@ ShowSensitiveOption = Annotated[
 ]
 TextOption = Annotated[bool, typer.Option("--text", help="Print human-readable text instead of JSONL.")]
 PairOption = Annotated[bool, typer.Option("--pair", help="Ask Bleak/OS to pair before GATT access.")]
+ApprovalKeyOption = Annotated[
+    str | None,
+    typer.Option("--approval-key", help="Exact identity/profile key printed by the prior read-only attempt."),
+]
 NoTimezoneOption = Annotated[bool, typer.Option("--no-timezone", help="Omit DD11 timezone/DST bytes.")]
 
 
@@ -183,6 +204,59 @@ def camera_info(
     _print_camera_info_text(result, include_raw=include_raw, show_sensitive=show_sensitive)
 
 
+@app.command("compatibility-snapshot")
+def compatibility_snapshot(
+    timeout: TimeoutOption = 10.0,
+    connect_timeout: ConnectTimeoutOption = 25.0,
+    target: TargetOption = None,
+    pair: PairOption = False,
+) -> None:
+    """Capture a sanitized, strict read-only Sony location compatibility snapshot."""
+    targets = normalize_targets(target)
+    try:
+        result = asyncio.run(
+            capture_compatibility_snapshot(
+                targets=targets,
+                scan_timeout=timeout,
+                connect_timeout=connect_timeout,
+                pair=pair,
+            )
+        )
+    except CompatibilitySnapshotError as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(code=2) from error
+    if result is None:
+        typer.echo(f"No target found. Targets: {', '.join(targets)}", err=True)
+        raise typer.Exit(code=1)
+    typer.echo(json.dumps(result.to_dict(), ensure_ascii=False, indent=2, sort_keys=True))
+
+
+@app.command("verify-exif")
+def verify_exif(
+    photo: Annotated[Path, typer.Option("--photo", exists=True, dir_okay=False, readable=True)],
+    latitude: Annotated[float, typer.Option("--lat", min=-90.0, max=90.0)],
+    longitude: Annotated[float, typer.Option("--lon", min=-180.0, max=180.0)],
+    not_before: Annotated[str, typer.Option("--not-before", help="ISO-8601 DD11 success timestamp with offset.")],
+    camera_timezone: Annotated[
+        str | None,
+        typer.Option("--camera-timezone", help="IANA zone used only when image EXIF has no UTC/offset time."),
+    ] = None,
+) -> None:
+    """Verify that a JPEG or HEIF image contains expected post-DD11 GPS EXIF."""
+    try:
+        result = verify_image_exif(
+            photo=photo,
+            expected_latitude=latitude,
+            expected_longitude=longitude,
+            not_before=parse_iso_datetime(not_before),
+            camera_timezone=camera_timezone,
+        )
+    except ExifVerificationError as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(code=2) from error
+    typer.echo(json.dumps(result.to_dict(), ensure_ascii=False, indent=2, sort_keys=True))
+
+
 @app.command()
 def monitor(
     interval: Annotated[
@@ -265,44 +339,49 @@ def encode_location(
 def send_location(
     latitude: Annotated[float, typer.Option("--lat", min=-90.0, max=90.0, help="Latitude in degrees.")],
     longitude: Annotated[float, typer.Option("--lon", min=-180.0, max=180.0, help="Longitude in degrees.")],
-    duration: DurationOption = 60.0,
+    duration: LocationDurationOption = 60.0,
     interval: Annotated[float, typer.Option("--interval", "-i", min=1.0, help="Seconds between DD11 writes.")] = 30.0,
     timeout: TimeoutOption = 10.0,
     connect_timeout: ConnectTimeoutOption = 30.0,
     target: TargetOption = None,
     json_output: JsonOption = False,
     pair: PairOption = False,
-    vendor_pair_init: Annotated[
-        bool,
-        typer.Option("--vendor-pair-init", help="Write Sony EE01 vendor pairing-init payload before DD30/DD31."),
-    ] = False,
     write: Annotated[bool, typer.Option("--write", help="Actually write to the camera. Omit for dry-run.")] = False,
-    no_timezone: NoTimezoneOption = False,
-    no_unlock: Annotated[bool, typer.Option("--no-unlock", help="Leave DD30/DD31 enabled on exit.")] = False,
+    allow_experimental: Annotated[
+        bool,
+        typer.Option(
+            "--allow-experimental",
+            help="Approve only the identity/profile matching --approval-key for this invocation.",
+        ),
+    ] = False,
+    approval_key: ApprovalKeyOption = None,
 ) -> None:
-    """Send a GPS location to the camera using the Sony DD30/DD31/DD11 flow."""
+    """Send GPS using the capability-resolved Sony modern or legacy location flow."""
     if not write:
-        packet = create_location_packet(latitude=latitude, longitude=longitude, include_timezone=not no_timezone)
+        packet = create_location_packet(latitude=latitude, longitude=longitude, include_timezone=True)
         typer.echo("Dry-run only; add --write to touch the camera.")
         typer.echo(bytes_to_hex(packet))
         return
 
     targets = normalize_targets(target)
-    result = asyncio.run(
-        sync_location(
-            targets=targets,
-            scan_timeout=timeout,
-            connect_timeout=connect_timeout,
-            latitude=latitude,
-            longitude=longitude,
-            duration=duration,
-            interval=interval,
-            pair=pair,
-            vendor_pair_init=vendor_pair_init,
-            include_timezone=False if no_timezone else None,
-            unlock=not no_unlock,
+    try:
+        result = asyncio.run(
+            sync_location(
+                targets=targets,
+                scan_timeout=timeout,
+                connect_timeout=connect_timeout,
+                latitude=latitude,
+                longitude=longitude,
+                duration=duration,
+                interval=interval,
+                pair=pair,
+                allow_experimental=allow_experimental,
+                approval_key=approval_key,
+            )
         )
-    )
+    except (BleakError, TimeoutError, OSError) as error:
+        typer.echo(f"Sony location session failed: {type(error).__name__}", err=True)
+        raise typer.Exit(code=2) from error
     if result is None:
         typer.echo(f"No target found. Targets: {', '.join(targets)}", err=True)
         raise typer.Exit(code=1)
@@ -313,6 +392,55 @@ def send_location(
         _print_location_sync_text(result)
 
     if not result.success:
+        raise typer.Exit(code=3)
+
+
+@app.command("pair-init")
+def pair_init(
+    timeout: TimeoutOption = 10.0,
+    connect_timeout: ConnectTimeoutOption = 30.0,
+    target: TargetOption = None,
+    pair: PairOption = False,
+    write: Annotated[bool, typer.Option("--write", help="Actually send EE01. Omit for dry-run.")] = False,
+    allow_experimental: Annotated[
+        bool,
+        typer.Option("--allow-experimental", help="Approve only the identity/profile matching --approval-key."),
+    ] = False,
+    approval_key: ApprovalKeyOption = None,
+) -> None:
+    """Run Sony EE01 pairing initialization as a separate explicit action."""
+    targets = normalize_targets(target)
+    try:
+        result = asyncio.run(
+            initialize_pairing(
+                targets=targets,
+                scan_timeout=timeout,
+                connect_timeout=connect_timeout,
+                pair=pair,
+                write=write,
+                allow_experimental=allow_experimental,
+                approval_key=approval_key,
+            )
+        )
+    except (BleakError, TimeoutError, OSError) as error:
+        typer.echo(f"Sony pairing session failed: {type(error).__name__}", err=True)
+        raise typer.Exit(code=2) from error
+    if result is None:
+        typer.echo(f"No target found. Targets: {', '.join(targets)}", err=True)
+        raise typer.Exit(code=1)
+    typer.echo(
+        f"Identity: model={result.identity.model} firmware={result.identity.firmware or 'unknown'} "
+        f"protocol={result.identity.protocol_version if result.identity.protocol_version is not None else 'unknown'} "
+        f"profile={result.profile.kind.value} confidence={result.compatibility.confidence.value}"
+    )
+    if result.approval_key is not None:
+        typer.echo(f"Approval key: {result.approval_key}")
+    if not write:
+        typer.echo("Dry-run only; add --write to send Sony EE01 pairing initialization.")
+    operation = result.operation
+    status = "OK" if operation.error is None else f"ERROR {operation.error}"
+    typer.echo(f"{operation.name} {operation.direction} {operation.uuid} len={len(operation.value or b'')} {status}")
+    if operation.error is not None:
         raise typer.Exit(code=3)
 
 
@@ -423,13 +551,8 @@ def _print_camera_info_text(
     typer.echo("Strict read-only Sony camera information snapshot")
     typer.echo(f"Captured: {result.captured_at}")
     typer.echo(f"Device: name={name!r} address={address} rssi={result.device.rssi}")
-    if result.advertisement is not None:
-        typer.echo(
-            "Advertisement: "
-            f"camera={result.advertisement.get('is_camera')} "
-            f"protocol_version={result.advertisement.get('protocol_version')} "
-            f"requires_unlock={result.advertisement.get('requires_unlock')}"
-        )
+    _print_camera_advertisement(result.advertisement)
+    _print_location_compatibility(result.location_compatibility)
 
     category_labels = {
         "identity": "Identity",
@@ -476,6 +599,36 @@ def _print_camera_info_text(
     typer.echo("\nResults: " + ", ".join(f"{status}={count}" for status, count in counts.items()))
 
 
+def _print_camera_advertisement(advertisement: dict[str, bool | int | None] | None) -> None:
+    if advertisement is None:
+        return
+    typer.echo(
+        "Advertisement: "
+        f"camera={advertisement.get('is_camera')} "
+        f"protocol_version={advertisement.get('protocol_version')} "
+        f"requires_unlock={advertisement.get('requires_unlock')}"
+    )
+
+
+def _print_location_compatibility(compatibility: dict[str, object] | None) -> None:
+    if compatibility is None:
+        return
+    identity = compatibility["identity"]
+    profile = compatibility["profile"]
+    dd21_mode = compatibility["dd21_mode"]
+    if not isinstance(identity, dict) or not isinstance(profile, dict):
+        return
+    packet_size = dd21_mode.get("packet_size", "unknown") if isinstance(dd21_mode, dict) else "unknown"
+    typer.echo(
+        "Location compatibility: "
+        f"model={identity.get('model')} firmware={identity.get('firmware') or 'unknown'} "
+        f"profile={profile.get('kind')} confidence={compatibility.get('confidence')} "
+        f"approval_required={compatibility.get('approval_required')} packet_size={packet_size}"
+    )
+    if compatibility.get("dd21_error") is not None:
+        typer.echo(f"DD21 negotiation: {compatibility['dd21_error']}")
+
+
 def _print_notification_event(event: NotificationEvent, text: bool) -> None:
     if text:
         payload = bytes_to_hex(event.data)
@@ -500,7 +653,7 @@ def _print_notification_summary(result: NotificationRun, duration: float) -> Non
 
 def _print_location_sync_text(result: SonyLocationSyncRun) -> None:
     device = result.device
-    typer.echo(f"Device: {device.name or device.local_name or '<unnamed>'} address={device.address} rssi={device.rssi}")
+    typer.echo(f"Device: {device.name or device.local_name or '<unnamed>'} rssi={device.rssi}")
     if result.advertisement is not None:
         typer.echo(
             "Sony advertisement: "
@@ -508,21 +661,33 @@ def _print_location_sync_text(result: SonyLocationSyncRun) -> None:
             f"protocol_version={result.advertisement.protocol_version} "
             f"requires_unlock={result.advertisement.requires_unlock}"
         )
+    typer.echo(
+        f"Identity: model={result.identity.model} firmware={result.identity.firmware or 'unknown'} "
+        f"profile={result.profile.kind.value} confidence={result.compatibility.confidence.value}"
+    )
+    typer.echo(f"Reason: {result.profile.reason}")
+    typer.echo(f"Approval required: {result.approval_required}")
+    if result.approval_key is not None:
+        typer.echo(f"Approval key: {result.approval_key}")
     typer.echo(f"Location sync: success={result.success} packets_sent={result.packets_sent}")
-    typer.echo(f"DD11 include_timezone={result.include_timezone}")
+    if result.dd21_mode is not None:
+        typer.echo(
+            f"DD21: mode={'timezone' if result.dd21_mode.include_timezone else 'compact'} "
+            f"packet_size={result.dd21_mode.packet_size}"
+        )
+    if result.cleanup_diagnostic is not None:
+        typer.echo(result.cleanup_diagnostic)
 
     typer.echo("Operations:")
     for operation in result.operations:
         status = "OK" if operation.error is None else f"ERROR {operation.error}"
         value_len = len(operation.value) if operation.value is not None else 0
         typer.echo(f"- {operation.name} {operation.direction} {operation.uuid} len={value_len} {status}")
-        if operation.value is not None and (operation.error is not None or operation.name == "write_dd11_location"):
-            typer.echo(f"  value={bytes_to_hex(operation.value)}")
 
     if result.notifications:
         typer.echo("DD01 notifications:")
         for event in result.notifications:
-            typer.echo(f"- {event.timestamp} len={len(event.data)} data={bytes_to_hex(event.data)}")
+            typer.echo(f"- {event.timestamp} len={len(event.data)} data=[REDACTED]")
 
 
 def _filters_label(filters: tuple[str, ...]) -> str:

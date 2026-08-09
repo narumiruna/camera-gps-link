@@ -3,13 +3,11 @@
 Target camera:
 
 - Model/name observed over BLE: `ILCE-7CM2`
-- macOS CoreBluetooth UUID observed: `FDEB1973-4261-02AF-B843-5027972A709B`
+- CoreBluetooth peripheral identifier: observed and retained only in private reconnect storage; not published
 - Advertisement local name: `ILCE-7CM2`
 - Advertisement service UUIDs: `00001800-0000-1000-8000-00805f9b34fb`
 - Manufacturer company ID: `0x012d` (Sony)
-- Example manufacturer payload: `03 00 65 00 55 31 22 ff c0 23 b7 ac 21 60 00 00 00 00 00 00`
-
-> The address above is a macOS CoreBluetooth identifier, not necessarily a stable public Bluetooth MAC address.
+- Sanitized manufacturer prefix: `03 00 65 00 [REDACTED]`; bytes after the device type, protocol version, and reserved byte are not published
 
 ## Probe commands
 
@@ -129,6 +127,7 @@ Implemented local commands:
 uv run sonygeotag encode-location --lat 35.681236 --lon 139.767125
 uv run sonygeotag send-location --lat 35.681236 --lon 139.767125
 uv run sonygeotag send-location --lat 35.681236 --lon 139.767125 --write --duration 60
+uv run sonygeotag compatibility-snapshot --target ILCE-7CM2 --pair
 ```
 
 `send-location` is dry-run unless `--write` is present.
@@ -140,7 +139,7 @@ uv run sonygeotag send-location --lat 35.681236 --lon 139.767125 --write --durat
 - `read-values` found 45 readable characteristics. Without completed pairing/bonding they failed with insufficient authentication/encryption or timeout; after pairing, a representative snapshot returned 33 values and 12 state-dependent `0x90`/`0x9D` errors.
 - `camera-info` decodes known values while preserving all 45 readable results and redacting sensitive/unknown payloads by default.
 - `notify-log` can subscribe to all 20 notify characteristics without Sony application-data writes, though BLE notification subscription configures CCCDs. No notifications were emitted during idle/manual camera operation, so location sync likely requires the DD30/DD31/DD11 flow.
-- `send-location --write --pair --vendor-pair-init` succeeded after putting the camera in Bluetooth pairing mode.
+- The historical baseline used EE01 while the camera was explicitly in pairing mode. Current ordinary location sessions never send EE01; `pair-init` is a separate explicit action.
 - Successful A7C II write details:
   - advertisement protocol version: `0x65` / `101`, unlock required
   - `EE01` pairing init payload accepted: `06 08 01 00 00 00 00`
@@ -150,6 +149,7 @@ uv run sonygeotag send-location --lat 35.681236 --lon 139.767125 --write --durat
   - `DD21` read: `06 10 00 9c 02 00 00`; byte 4 has `0x02`, so A7C II uses the 95-byte timezone-capable DD11 packet
   - Two 95-byte `DD11` packets were accepted
   - Test photo EXIF showed the sent Eiffel Tower coordinate, confirming camera-side geotag write for newly captured photos.
+- Post-refactor regression on firmware `2.01` passed on 2026-08-09: after separate OS bonding and EE01 initialization, a power cycle cleared a stale DD30 lock; a 60-second active session accepted DD30/DD31, strict seven-byte DD21, three 95-byte DD11 packets, and clean DD31/DD30 teardown. A HEIF captured during that window showed `25°02′02″, 121°33′52″` on camera and passed the standard EXIF verifier. Capture must occur while the location window is active; immediate cleanup after a single packet did not geotag a later image.
 
 ## Reverse-engineering gates
 

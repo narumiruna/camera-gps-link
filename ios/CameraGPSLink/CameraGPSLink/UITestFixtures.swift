@@ -32,6 +32,21 @@ enum UITestAppModelFactory {
         case "connecting":
             camera.state = .connecting
             camera.discoveredCameraName = "ILCE-7CM2"
+        case "experimental-approval":
+            camera.state = .awaitingApproval
+            camera.discoveredCameraName = "ILCE-7M4"
+            camera.targetName = "ILCE-7M4"
+            camera.firmware = "4.00"
+            camera.profile = .modern
+            camera.confidence = .experimental
+            camera.experimentalApprovalPending = true
+            location = fixtureLocation(now: now)
+        case "unsupported":
+            camera.state = .unsupported
+            camera.discoveredCameraName = "Unknown Sony camera"
+            camera.profile = .unsupported
+            camera.confidence = .unsupported
+            camera.lastError = "DD11 lacks write-with-response."
         case "connected-before-send":
             camera.state = .linked
             location = fixtureLocation(now: now)
@@ -145,6 +160,30 @@ private final class UITestCameraService: CameraLinkServicing {
         onChange?()
     }
 
+    func approveExperimentalProfile() {
+        snapshot.experimentalApprovalPending = false
+        snapshot.state = .enablingLocation
+        onChange?()
+    }
+
+    func requestPairingInitialization() {
+        snapshot.pairingConfirmationPending = true
+        snapshot.pairingStatus = "Confirmation required"
+        onChange?()
+    }
+
+    func confirmPairingInitialization() {
+        snapshot.pairingConfirmationPending = false
+        snapshot.pairingStatus = "Pairing initialization sent"
+        onChange?()
+    }
+
+    func cancelPairingInitialization() {
+        snapshot.pairingConfirmationPending = false
+        snapshot.pairingStatus = "Cancelled without a GATT write"
+        onChange?()
+    }
+
     func stopLink() {
         snapshot.state = .stopped
         snapshot.pendingReconnectArmed = false
@@ -222,10 +261,20 @@ private extension CameraServiceSnapshot {
         packetsSent: 0,
         lastSentAt: nil,
         includeTimezone: true,
-        dd21ConfigHex: "0610009c020000",
+        dd21ConfigHex: "06 10 00 9c 02 00 00",
+        firmware: "2.01",
+        protocolVersion: 101,
+        profile: .modern,
+        confidence: .verified,
+        packetSize: 95,
+        experimentalApprovalPending: false,
+        pairingConfirmationPending: false,
+        pairingStatus: "Not requested",
+        cleanupDiagnostic: nil,
+        operationOrder: [],
         lastError: nil,
         pendingReconnectArmed: false,
-        rememberedPeripheralID: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE",
+        activeLinkIntent: false,
         updateInterval: 120
     )
 }

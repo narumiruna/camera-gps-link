@@ -26,5 +26,19 @@ jobs:
         run: uv run ruff check .
       - name: Type check
         run: uv run ty check .
+      - name: Source line limit
+        run: uv run python scripts/check_source_lines.py
       - name: Test
         run: uv run pytest -v -s --cov=src --cov-report=xml tests
+
+  ios:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+      - name: Install just
+        run: brew install just
+      - name: Verify iOS app
+        run: just ios-check

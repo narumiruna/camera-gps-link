@@ -21,21 +21,52 @@ struct DiagnosticsView: View {
                 if let name = camera.discoveredCameraName {
                     diagnosticRow("Found", name)
                 }
+                if let firmware = camera.firmware {
+                    diagnosticRow("Firmware", firmware)
+                } else {
+                    diagnosticRow("Firmware", "Unknown")
+                }
+                diagnosticRow("Protocol", camera.protocolVersion.map(String.init) ?? "Unknown")
+                diagnosticRow("Profile", camera.profile?.rawValue.capitalized ?? "Unresolved")
+                diagnosticRow("Confidence", camera.confidence.rawValue.capitalized)
+                diagnosticRow("Approval", camera.experimentalApprovalPending ? "Required" : "Not pending")
                 diagnosticRow("Packets sent", String(camera.packetsSent))
-                diagnosticRow("DD11 timezone", camera.includeTimezone ? "95-byte packet" : "91-byte packet")
+                diagnosticRow("DD11 packet", camera.packetSize.map { "\($0) bytes" } ?? "Not negotiated")
                 if let dd21 = camera.dd21ConfigHex {
                     diagnosticRow("DD21 config", dd21, monospaced: true)
                 }
                 diagnosticRow("DD11 interval", "\(Int(camera.updateInterval)) seconds")
                 diagnosticRow("Pending reconnect", camera.pendingReconnectArmed ? "Armed" : "No")
-                if let remembered = camera.rememberedPeripheralID {
-                    diagnosticRow("Remembered peripheral", remembered, monospaced: true)
+                diagnosticRow("Cleanup", camera.cleanupDiagnostic ?? "Not needed")
+                if !camera.operationOrder.isEmpty {
+                    diagnosticRow("Operation order", camera.operationOrder.joined(separator: " → "))
                 }
                 if let sent = camera.lastSentAt {
                     diagnosticRow("Last sent", sent.formatted(date: .abbreviated, time: .standard))
                 }
                 if let error = camera.lastError {
                     diagnosticError(error)
+                }
+            }
+
+            Section("Pairing Initialization") {
+                diagnosticRow("Status", camera.pairingStatus)
+                Text("EE01 is never part of a location session. Use this only while the camera is explicitly in pairing mode.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Button("Initialize Camera Pairing") {
+                    appModel.requestPairingInitialization()
+                }
+                .disabled(![.idle, .stopped, .failed, .unsupported].contains(camera.state))
+                .accessibilityIdentifier("request-pairing-init")
+                if camera.experimentalApprovalPending {
+                    Button("Approve Experimental Pairing Profile") {
+                        appModel.approveExperimentalProfile()
+                    }
+                    .accessibilityIdentifier("approve-experimental-pairing")
+                    Button("Cancel Pairing", role: .cancel) {
+                        appModel.cancelPairingInitialization()
+                    }
                 }
             }
 
@@ -95,6 +126,23 @@ struct DiagnosticsView: View {
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .accessibilityIdentifier("diagnostics-view")
+        .confirmationDialog(
+            "Send Sony pairing initialization?",
+            isPresented: Binding(
+                get: { camera.pairingConfirmationPending },
+                set: { if !$0 { appModel.cancelPairingInitialization() } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Send Pairing Initialization") {
+                appModel.confirmPairingInitialization()
+            }
+            Button("Cancel", role: .cancel) {
+                appModel.cancelPairingInitialization()
+            }
+        } message: {
+            Text("This writes EE01 once. Confirm the camera is on its Bluetooth pairing screen.")
+        }
     }
 
     private var camera: CameraServiceSnapshot {
