@@ -10,3 +10,11 @@
   - `just ios-console` to launch the installed iOS app on the default USB device and attach console output.
 - Prefer targeted `just` recipes over repeating long shell commands.
 - Do not run `just location-write` unless the user explicitly asks to write GPS data to the camera.
+
+## References
+
+- When implementation help is needed, such as information about other camera models, inspect the code in `third_party/`.
+- Check `third_party/references.md` first; if it lacks the required information, search `third_party/`.
+- After reading third-party code, determine whether the information is useful; if it is, record it in `third_party/references.md`.
+- Write each note in `third_party/references.md` on a separate line, briefly describing its purpose, relative source path, file name, and line numbers.
+- If third-party source code contains incorrect information, briefly document the error and why it is incorrect in `third_party/references.md`.
