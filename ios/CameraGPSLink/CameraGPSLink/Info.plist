@@ -26,6 +26,8 @@
   <string>$(CURRENT_PROJECT_VERSION)</string>
   <key>LSRequiresIPhoneOS</key>
   <true/>
+  <key>ITSAppUsesNonExemptEncryption</key>
+  <false/>
   <key>NSBluetoothAlwaysUsageDescription</key>
   <string>Camera GPS Link uses Bluetooth to send GPS location updates to a compatible camera.</string>
   <key>NSBluetoothPeripheralUsageDescription</key>
