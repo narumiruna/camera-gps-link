@@ -5,45 +5,74 @@ import Foundation
 import OSLog
 
 final class CameraBLEManager: NSObject, ObservableObject {
-    @Published private(set) var state: CameraConnectionState = .idle
-    @Published private(set) var discoveredCameraName: String?
-    @Published private(set) var lastSentAt: Date?
-    @Published private(set) var packetsSent = 0
-    @Published private(set) var includeTimezone = true
-    @Published private(set) var dd21ConfigHex: String?
-    @Published private(set) var lastError: String?
-    @Published private(set) var backgroundLinkEnabled = UserDefaults.standard.bool(
+    @Published var state: CameraConnectionState = .idle
+    @Published var discoveredCameraName: String?
+    @Published var lastSentAt: Date?
+    @Published var packetsSent = 0
+    @Published var includeTimezone = true
+    @Published var dd21ConfigHex: String?
+    @Published var detectedFirmware: String?
+    @Published var advertisementProtocolVersion: Int?
+    @Published var resolvedProfile: SonyLocationProfile?
+    @Published var supportConfidence: SonySupportConfidence = .experimental
+    @Published var packetSize: Int?
+    @Published var experimentalApprovalPending = false
+    @Published var pairingConfirmationPending = false
+    @Published var pairingStatus = "Not requested"
+    @Published var cleanupDiagnostic: String?
+    @Published var sanitizedOperationOrder: [String] = []
+    @Published var lastError: String?
+    @Published var backgroundLinkEnabled = UserDefaults.standard.bool(
         forKey: CameraBLEDefaults.backgroundLinkEnabled
     )
-    @Published private(set) var lowPowerModeEnabled = UserDefaults.standard.object(
+    @Published var lowPowerModeEnabled = UserDefaults.standard.object(
         forKey: CameraBLEDefaults.lowPowerModeEnabled
     ) as? Bool ?? true
-    @Published private(set) var rememberedPeripheralID = UserDefaults.standard.string(
+    private(set) var rememberedPeripheralID = UserDefaults.standard.string(
         forKey: CameraBLEDefaults.rememberedPeripheralID
     )
-    @Published private(set) var pendingReconnectArmed = false
+    @Published var pendingReconnectArmed = false
 
-    var targetName = "ILCE-7CM2"
+    var targetName = "Sony camera"
     var updateInterval: TimeInterval = CameraBLEDefaults.foregroundUpdateInterval
 
-    private var centralManager: CBCentralManager!
-    private var peripheral: CBPeripheral?
-    private var characteristics: [String: CBCharacteristic] = [:]
-    private var didStartLocationSetup = false
-    private var locationProvider: (() -> CLLocation?)?
-    private var sendTimer: Timer?
-    private var operationQueue: [QueuedBLEOperation] = []
-    private var pendingOperation: PendingBLEOperation?
-    private var operationTimeoutTimer: Timer?
-    private var onQueueEmpty: (() -> Void)?
-    private var resumeWhenBluetoothPowersOn = false
-    private var manualStopRequested = false
-    private var reconnectRetryTimer: Timer?
-    private var foregroundTimeoutSession: ForegroundConnectionTimeoutSession!
-    private let operationTimeout: TimeInterval = 12
-    private let diagnosticsStore: DiagnosticsLogStore
-    private let logger = Logger(subsystem: "dev.narumi.cameragpslink", category: "BLE")
-    private let connectOptions: [String: Any] = [
+    var centralManager: CBCentralManager!
+    var peripheral: CBPeripheral?
+    var characteristics: [String: CBCharacteristic] = [:]
+    var descriptors: [SonyGattDescriptor] = []
+    var pendingCharacteristicServices: Set<String> = []
+    var didCompleteIdentityDiscovery = false
+    var currentIdentity: SonyCameraIdentity?
+    var sessionApprovalKey: String?
+    var acquisition = SonyLocationAcquisition()
+    var connectionIntent: CameraConnectionIntent = .location
+    var attemptOrigin: CameraAttemptOrigin = .none
+    var activeSessionRequested = false
+    var userLinkIntentActive = UserDefaults.standard.bool(forKey: CameraBLEDefaults.activeLinkIntent)
+    var cancelAfterCurrentOperation = false
+    var compensationErrors: [String] = []
+    var compensationInProgress = false
+    var didStartLocationSetup = false
+    var locationProvider: (() -> CLLocation?)?
+    var sendTimer: Timer?
+    var operationQueue: [QueuedBLEOperation] = []
+    var pendingOperation: PendingBLEOperation?
+    var timedOutCallbackDebt: [String: Int] = [:]
+    var operationTimeoutTimer: Timer?
+    var onQueueEmpty: (() -> Void)?
+    var resumeWhenBluetoothPowersOn = false
+    var manualStopRequested = false
+    var reconnectRetryTimer: Timer?
+    var foregroundTimeoutSession: ForegroundConnectionTimeoutSession!
+    let operationTimeout: TimeInterval = 12
+    let maximumLocationAge: TimeInterval = 120
+    let maximumFutureLocationSkew: TimeInterval = 10
+    let diagnosticsStore: DiagnosticsLogStore
+    let identityStore: any SonyValidatedIdentityStoring
+    let sessionPlanner: any SonyLocationSessionPlanning
+    let sessionExecutor: any SonyLocationSessionExecuting
+    let logger = Logger(subsystem: "dev.narumi.cameragpslink", category: "BLE")
+    let connectOptions: [String: Any] = [
         CBConnectPeripheralOptionNotifyOnConnectionKey: true,
         CBConnectPeripheralOptionNotifyOnDisconnectionKey: true,
         CBConnectPeripheralOptionNotifyOnNotificationKey: true,
@@ -64,9 +93,15 @@ final class CameraBLEManager: NSObject, ObservableObject {
     init(
         diagnosticsStore: DiagnosticsLogStore,
         timeoutPolicy: ForegroundConnectionTimeoutPolicy,
-        timeoutScheduler: ConnectionTimeoutScheduler
+        timeoutScheduler: ConnectionTimeoutScheduler,
+        identityStore: any SonyValidatedIdentityStoring = UserDefaultsSonyValidatedIdentityStore(),
+        sessionPlanner: any SonyLocationSessionPlanning = DefaultSonyLocationSessionPlanner(),
+        sessionExecutor: any SonyLocationSessionExecuting = DefaultSonyLocationSessionExecutor()
     ) {
         self.diagnosticsStore = diagnosticsStore
+        self.identityStore = identityStore
+        self.sessionPlanner = sessionPlanner
+        self.sessionExecutor = sessionExecutor
         super.init()
         foregroundTimeoutSession = ForegroundConnectionTimeoutSession(
             policy: timeoutPolicy,
@@ -85,7 +120,13 @@ final class CameraBLEManager: NSObject, ObservableObject {
     }
 
     var canStart: Bool {
-        state != .scanning && state != .connecting && state != .discovering && state != .enablingLocation && state != .linked
+        guard peripheral == nil,
+              !compensationInProgress,
+              pendingOperation == nil,
+              !cancelAfterCurrentOperation
+        else { return false }
+        return ![.scanning, .connecting, .discovering, .awaitingApproval, .enablingLocation, .linked, .pairing]
+            .contains(state)
     }
 
     var logLines: [String] {
@@ -121,9 +162,17 @@ final class CameraBLEManager: NSObject, ObservableObject {
     }
 
     func startLink(locationProvider: @escaping () -> CLLocation?) {
+        guard canStart else {
+            appendLog("Ignoring start request until the current operation and cleanup finish")
+            return
+        }
         setLocationProvider(locationProvider)
         manualStopRequested = false
         prepareForNewSession(resetCounters: true)
+        connectionIntent = .location
+        attemptOrigin = .foreground
+        setUserLinkIntent(active: true)
+        activeSessionRequested = true
         foregroundTimeoutSession.begin()
         appendLog("Starting Sony location link")
 
@@ -140,10 +189,17 @@ final class CameraBLEManager: NSObject, ObservableObject {
     func resumeBackgroundLink(locationProvider: @escaping () -> CLLocation?) {
         setLocationProvider(locationProvider)
         guard backgroundLinkEnabled else { return }
+        guard userLinkIntentActive else {
+            appendLog("Ignoring automatic resume without active link intent")
+            return
+        }
         guard canStart else { return }
         manualStopRequested = false
         foregroundTimeoutSession.end()
-        prepareForNewSession(resetCounters: false)
+        prepareForNewSession(resetCounters: true)
+        connectionIntent = .location
+        attemptOrigin = .background
+        activeSessionRequested = true
         appendLog("Background link enabled; attempting camera reconnect")
         armBackgroundReconnect(reason: "Background Link resume")
     }
@@ -151,55 +207,49 @@ final class CameraBLEManager: NSObject, ObservableObject {
     func cancelCurrentAttempt() {
         appendLog("Cancelling current connection attempt")
         manualStopRequested = true
+        setUserLinkIntent(active: false)
+        activeSessionRequested = false
+        attemptOrigin = .none
         cancelConnectionStageTimeout()
         resumeWhenBluetoothPowersOn = false
         centralManager.stopScan()
         disarmPendingReconnect()
         stopTimer()
-        stopOperationTimeout()
+        experimentalApprovalPending = false
+        pairingConfirmationPending = false
         operationQueue.removeAll()
-        pendingOperation = nil
         onQueueEmpty = nil
-        if let peripheral, peripheral.state != .disconnected {
-            centralManager.cancelPeripheralConnection(peripheral)
+        guard pendingOperation == nil else {
+            cancelAfterCurrentOperation = true
+            return
         }
-        self.peripheral = nil
-        characteristics.removeAll()
-        didStartLocationSetup = false
-        state = .stopped
+        beginCompensation(finalState: .stopped, disconnectAfter: true)
     }
 
     func stopLink() {
         appendLog("Stopping Sony location link")
         manualStopRequested = true
+        setUserLinkIntent(active: false)
+        activeSessionRequested = false
+        attemptOrigin = .none
         cancelConnectionStageTimeout()
         resumeWhenBluetoothPowersOn = false
         centralManager.stopScan()
         disarmPendingReconnect()
         stopTimer()
-        stopOperationTimeout()
         state = .stopping
         operationQueue.removeAll()
-        pendingOperation = nil
-
-        guard peripheral != nil else {
-            state = .stopped
+        onQueueEmpty = nil
+        experimentalApprovalPending = false
+        pairingConfirmationPending = false
+        guard pendingOperation == nil else {
+            cancelAfterCurrentOperation = true
             return
         }
-
-        enqueueWrite(name: "DD31 disable", uuid: SonyProtocol.locationEnableUUID, data: Data([0x00]), required: false)
-        enqueueWrite(name: "DD30 unlock", uuid: SonyProtocol.locationLockUUID, data: Data([0x00]), required: false)
-        onQueueEmpty = { [weak self] in
-            guard let self else { return }
-            if let peripheral = self.peripheral {
-                self.centralManager.cancelPeripheralConnection(peripheral)
-            }
-            self.state = .stopped
-        }
-        runNextOperationIfNeeded()
+        beginCompensation(finalState: .stopped, disconnectAfter: true)
     }
 
-    private func prepareForNewSession(resetCounters: Bool) {
+    func prepareForNewSession(resetCounters: Bool) {
         cancelConnectionStageTimeout()
         if resetCounters {
             packetsSent = 0
@@ -207,8 +257,28 @@ final class CameraBLEManager: NSObject, ObservableObject {
         }
         lastError = nil
         dd21ConfigHex = nil
+        detectedFirmware = nil
+        advertisementProtocolVersion = nil
+        resolvedProfile = nil
+        supportConfidence = .experimental
+        packetSize = nil
+        experimentalApprovalPending = false
+        pairingConfirmationPending = false
+        pairingStatus = "Not requested"
+        cleanupDiagnostic = nil
+        sanitizedOperationOrder.removeAll()
         characteristics.removeAll()
+        descriptors.removeAll()
+        pendingCharacteristicServices.removeAll()
+        timedOutCallbackDebt.removeAll()
+        didCompleteIdentityDiscovery = false
+        currentIdentity = nil
+        sessionApprovalKey = nil
+        acquisition = SonyLocationAcquisition()
+        cancelAfterCurrentOperation = false
+        compensationErrors.removeAll()
         didStartLocationSetup = false
+        attemptOrigin = .none
         stopTimer()
         stopOperationTimeout()
         reconnectRetryTimer?.invalidate()
@@ -218,7 +288,7 @@ final class CameraBLEManager: NSObject, ObservableObject {
         onQueueEmpty = nil
     }
 
-    private func connectToRememberedCameraOrScan() {
+    func connectToRememberedCameraOrScan() {
         if connectToRememberedCamera(reason: "remembered camera reconnect") {
             return
         }
@@ -226,7 +296,7 @@ final class CameraBLEManager: NSObject, ObservableObject {
     }
 
     @discardableResult
-    private func armBackgroundReconnect(reason: String) -> Bool {
+    func armBackgroundReconnect(reason: String) -> Bool {
         guard backgroundLinkEnabled, !manualStopRequested else { return false }
         guard centralManager.state == .poweredOn else {
             resumeWhenBluetoothPowersOn = true
@@ -242,7 +312,7 @@ final class CameraBLEManager: NSObject, ObservableObject {
         return false
     }
 
-    private func connectToRememberedCamera(reason: String) -> Bool {
+    func connectToRememberedCamera(reason: String) -> Bool {
         guard let rememberedPeripheralID,
               let identifier = UUID(uuidString: rememberedPeripheralID)
         else {
@@ -258,7 +328,7 @@ final class CameraBLEManager: NSObject, ObservableObject {
         switch rememberedPeripheral.state {
         case .connected:
             appendLog("Remembered camera already connected; discovering services")
-            pendingReconnectArmed = false
+            pendingReconnectArmed = attemptOrigin == .background
             peripheral = rememberedPeripheral
             beginServiceDiscovery(for: rememberedPeripheral)
         case .connecting:
@@ -267,14 +337,14 @@ final class CameraBLEManager: NSObject, ObservableObject {
             state = .connecting
             peripheral = rememberedPeripheral
         case .disconnected, .disconnecting:
-            appendLog("Arming pending reconnect to remembered camera \(identifier.uuidString) (\(reason))")
+            appendLog("Arming pending reconnect to remembered camera (\(reason))")
             pendingReconnectArmed = true
             state = .connecting
             peripheral = rememberedPeripheral
             rememberedPeripheral.delegate = self
             centralManager.connect(rememberedPeripheral, options: connectOptions)
         @unknown default:
-            appendLog("Arming pending reconnect to remembered camera \(identifier.uuidString) (\(reason))")
+            appendLog("Arming pending reconnect to remembered camera (\(reason))")
             pendingReconnectArmed = true
             state = .connecting
             peripheral = rememberedPeripheral
@@ -284,13 +354,13 @@ final class CameraBLEManager: NSObject, ObservableObject {
         return true
     }
 
-    private func disarmPendingReconnect() {
+    func disarmPendingReconnect() {
         reconnectRetryTimer?.invalidate()
         reconnectRetryTimer = nil
         pendingReconnectArmed = false
     }
 
-    private func scheduleReconnectRetry(reason: String) {
+    func scheduleReconnectRetry(reason: String) {
         guard backgroundLinkEnabled, !manualStopRequested else { return }
         reconnectRetryTimer?.invalidate()
         let retryInterval = lowPowerModeEnabled
@@ -302,66 +372,282 @@ final class CameraBLEManager: NSObject, ObservableObject {
         }
     }
 
-    private func scanForCamera() {
+    func scanForCamera() {
         state = .scanning
+        if attemptOrigin == .background {
+            pendingReconnectArmed = true
+        }
         startConnectionStageTimeout(.scanning)
-        let mode = backgroundLinkEnabled ? "background-capable" : "foreground"
-        appendLog("Scanning for \(targetName) (\(mode); iOS may throttle background scans)")
+        let mode = attemptOrigin == .background ? "background" : "foreground"
+        appendLog("Scanning for a Sony camera (\(mode); iOS may throttle background scans)")
         centralManager.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
     }
 
-    private func beginServiceDiscovery(for peripheral: CBPeripheral) {
+    func beginServiceDiscovery(for peripheral: CBPeripheral) {
         state = .discovering
         startConnectionStageTimeout(.discovering)
         peripheral.delegate = self
+        detectedFirmware = nil
+        resolvedProfile = nil
+        supportConfidence = .experimental
+        packetSize = nil
+        dd21ConfigHex = nil
+        currentIdentity = nil
+        sessionApprovalKey = nil
+        experimentalApprovalPending = false
+        pairingConfirmationPending = false
+        descriptors.removeAll()
+        pendingCharacteristicServices.removeAll()
+        didCompleteIdentityDiscovery = false
         let serviceUUIDs = [
+            CBUUID(string: SonyProtocol.cameraControlServiceUUID),
             CBUUID(string: SonyProtocol.locationServiceUUID),
             CBUUID(string: SonyProtocol.pairingServiceUUID),
         ]
         peripheral.discoverServices(serviceUUIDs)
     }
 
-    private func maybeBeginLocationSetup() {
-        guard !didStartLocationSetup else { return }
-        guard characteristic(SonyProtocol.locationLockUUID) != nil,
-              characteristic(SonyProtocol.locationEnableUUID) != nil,
-              characteristic(SonyProtocol.locationDataWriteUUID) != nil
-        else {
-            return
+    func beginIdentityDiscovery() {
+        guard !didCompleteIdentityDiscovery else { return }
+        operationQueue.removeAll()
+        if descriptor(SonyProtocol.cameraModelUUID)?.properties.contains(.read) == true {
+            enqueueRead(name: "CC0B model", uuid: SonyProtocol.cameraModelUUID, required: false) { [weak self] data in
+                self?.discoveredCameraName = self?.decodeIdentity(data)
+            }
+        }
+        if descriptor(SonyProtocol.firmwareVersionUUID)?.properties.contains(.read) == true {
+            enqueueRead(name: "CC0A firmware", uuid: SonyProtocol.firmwareVersionUUID, required: false) { [weak self] data in
+                self?.detectedFirmware = self?.decodeIdentity(data)
+            }
+        }
+        onQueueEmpty = { [weak self] in
+            self?.resolveDiscoveredProfile()
+        }
+        runNextOperationIfNeeded()
+    }
+
+    func resolveDiscoveredProfile() {
+        guard activeSessionRequested, !manualStopRequested else { return }
+        didCompleteIdentityDiscovery = true
+        let model = discoveredCameraName ?? peripheral?.name ?? "Unknown Sony camera"
+        let fingerprint = SonyLocationCapabilityResolver.descriptorFingerprint(descriptors)
+        let stored = identityStore.load()
+        var protocolVersion = advertisementProtocolVersion
+        if protocolVersion == nil,
+           let stored,
+           stored.peripheralID == peripheral?.identifier.uuidString,
+           stored.identity.normalizedModel == SonyCameraIdentity(
+               model: model,
+               firmware: detectedFirmware,
+               protocolVersion: nil
+           ).normalizedModel,
+           stored.identity.firmware == detectedFirmware,
+           stored.descriptorFingerprint == fingerprint {
+            protocolVersion = stored.identity.protocolVersion
         }
 
+        let identity = SonyCameraIdentity(model: model, firmware: detectedFirmware, protocolVersion: protocolVersion)
+        var profile = SonyLocationCapabilityResolver.resolve(
+            protocolVersion: protocolVersion,
+            descriptors: descriptors,
+            discoveryComplete: pendingCharacteristicServices.isEmpty
+        )
+        var compatibility = SonyLocationCapabilityResolver.compatibility(identity: identity, profile: profile)
+        if compatibility.confidence == .unsupported {
+            profile = SonyLocationCapabilityResolver.resolve(
+                protocolVersion: protocolVersion,
+                descriptors: descriptors,
+                discoveryComplete: true,
+                registryConfidence: .unsupported
+            )
+            compatibility = SonyCompatibility(confidence: .unsupported, evidence: compatibility.evidence)
+        }
+        if let stored,
+           !stored.matches(
+               peripheralID: peripheral?.identifier.uuidString ?? "",
+               identity: identity,
+               profile: profile,
+               descriptors: descriptors
+           ) {
+            identityStore.clear()
+        }
+
+        currentIdentity = identity
+        targetName = identity.model
+        advertisementProtocolVersion = protocolVersion
+        resolvedProfile = profile
+        supportConfidence = profile.isExecutable ? compatibility.confidence : .unsupported
+        appendLog(
+            "Resolved model=\(identity.normalizedModel) firmware=\(identity.firmware ?? "unknown") "
+                + "protocol=\(identity.protocolVersion.map(String.init) ?? "unknown") "
+                + "profile=\(profile.kind.rawValue) confidence=\(supportConfidence.rawValue)"
+        )
+
+        guard profile.isExecutable, supportConfidence != .unsupported else {
+            rejectUnsupportedProfile(profile.reason)
+            return
+        }
+        if supportConfidence != .verified {
+            cancelConnectionStageTimeout()
+            experimentalApprovalPending = true
+            state = .awaitingApproval
+            return
+        }
+        if connectionIntent == .pairing {
+            presentPairingConfirmation()
+        } else {
+            beginLocationSetup()
+        }
+    }
+
+    func approveExperimentalProfile() {
+        guard experimentalApprovalPending,
+              let identity = currentIdentity,
+              let profile = resolvedProfile,
+              profile.isExecutable
+        else { return }
+        sessionApprovalKey = approvalKey(identity: identity, profile: profile)
+        experimentalApprovalPending = false
+        foregroundTimeoutSession.begin()
+        appendLog("Experimental profile approved for this session")
+        if connectionIntent == .pairing {
+            presentPairingConfirmation()
+        } else {
+            beginLocationSetup()
+        }
+    }
+
+    func requestPairingInitialization() {
+        guard canStart else {
+            pairingStatus = "Stop the active location session before starting pairing."
+            return
+        }
+        manualStopRequested = false
+        prepareForNewSession(resetCounters: true)
+        connectionIntent = .pairing
+        attemptOrigin = .foreground
+        activeSessionRequested = true
+        pairingStatus = "Discovering camera identity before pairing confirmation"
+        foregroundTimeoutSession.begin()
+        guard centralManager.state == .poweredOn else {
+            activeSessionRequested = false
+            foregroundTimeoutSession.end()
+            state = .bluetoothUnavailable
+            pairingStatus = "Bluetooth is unavailable"
+            return
+        }
+        connectToRememberedCameraOrScan()
+    }
+
+    func presentPairingConfirmation() {
+        guard connectionIntent == .pairing,
+              didCompleteIdentityDiscovery,
+              descriptor(SonyProtocol.pairingInitUUID)?.properties.contains(.write) == true
+        else {
+            pairingStatus = "EE01 write-with-response is unavailable in the current session."
+            fail(pairingStatus)
+            return
+        }
+        cancelConnectionStageTimeout()
+        pairingConfirmationPending = true
+        pairingStatus = "Confirmation required for \(currentIdentity?.normalizedModel ?? "unknown camera")"
+        state = .pairing
+    }
+
+    func confirmPairingInitialization() {
+        guard connectionIntent == .pairing,
+              pairingConfirmationPending,
+              !experimentalApprovalPending,
+              currentIdentity != nil
+        else { return }
+        pairingConfirmationPending = false
+        pairingStatus = "Sending explicit EE01 pairing initialization"
+        state = .pairing
+        enqueueWrite(
+            name: "EE01 pairing init",
+            uuid: SonyProtocol.pairingInitUUID,
+            data: SonyProtocol.pairingInitPayload,
+            required: true
+        )
+        onQueueEmpty = { [weak self] in
+            guard let self else { return }
+            self.pairingStatus = "Pairing initialization sent"
+            self.attemptOrigin = .none
+            self.activeSessionRequested = false
+            self.state = .stopped
+            if let peripheral = self.peripheral {
+                self.centralManager.cancelPeripheralConnection(peripheral)
+            }
+        }
+        runNextOperationIfNeeded()
+    }
+
+    func cancelPairingInitialization() {
+        pairingConfirmationPending = false
+        pairingStatus = "Cancelled without a GATT write"
+        cancelCurrentAttempt()
+    }
+
+    func beginLocationSetup() {
+        guard !didStartLocationSetup, let profile = resolvedProfile else { return }
+        guard supportConfidence == .verified || sessionApprovalKey == expectedApprovalKey else {
+            experimentalApprovalPending = true
+            state = .awaitingApproval
+            return
+        }
         didStartLocationSetup = true
         state = .enablingLocation
         startConnectionStageTimeout(.preparing)
-        appendLog("Required Sony location characteristics found")
-
-        if characteristic(SonyProtocol.locationStatusNotifyUUID) != nil {
-            enqueueNotify(name: "DD01 notify", uuid: SonyProtocol.locationStatusNotifyUUID, enabled: true, required: false)
+        let plan = sessionPlanner.makePlan(profile: profile)
+        appendLog("Executing Sony \(plan.profile.rawValue) location plan")
+        sessionExecutor.execute(plan: plan) { [weak self] action in
+            self?.enqueue(action)
         }
-
-        if characteristic(SonyProtocol.pairingInitUUID) != nil {
-            enqueueWrite(
-                name: "EE01 pairing init",
-                uuid: SonyProtocol.pairingInitUUID,
-                data: SonyProtocol.pairingInitPayload,
-                required: false
-            )
-        }
-        enqueueWrite(name: "DD30 lock", uuid: SonyProtocol.locationLockUUID, data: Data([0x01]), required: true)
-        enqueueWrite(name: "DD31 enable", uuid: SonyProtocol.locationEnableUUID, data: Data([0x01]), required: true)
-        enqueueRead(name: "DD32 time correction", uuid: SonyProtocol.timeCorrectionUUID, required: false)
-        enqueueRead(name: "DD33 area adjustment", uuid: SonyProtocol.areaAdjustmentUUID, required: false)
-        enqueueRead(name: "DD21 config", uuid: SonyProtocol.locationConfigReadUUID, required: false) { [weak self] data in
-            guard let self else { return }
-            self.dd21ConfigHex = SonyProtocol.hex(data)
-            self.includeTimezone = SonyProtocol.parseConfigRequiresTimezone(data)
-            self.appendLog("DD21 config \(SonyProtocol.hex(data)); includeTimezone=\(self.includeTimezone)")
-        }
-
         onQueueEmpty = { [weak self] in
-            self?.startSendingLocations()
+            guard let self else { return }
+            guard self.packetSize != nil else {
+                self.fail("DD21 negotiation did not produce a supported packet size")
+                return
+            }
+            self.startSendingLocations()
         }
         runNextOperationIfNeeded()
+    }
+
+    var expectedApprovalKey: String? {
+        guard let identity = currentIdentity, let profile = resolvedProfile else { return nil }
+        return approvalKey(identity: identity, profile: profile)
+    }
+
+    func enqueue(_ action: SonyLocationAction) {
+        switch action.kind {
+        case let .notify(enabled):
+            enqueueNotify(name: action.name, uuid: action.uuid, enabled: enabled, required: action.required)
+        case let .write(data):
+            enqueueWrite(name: action.name, uuid: action.uuid, data: data, required: action.required)
+        case .read:
+            if action.uuid.lowercased() == SonyProtocol.locationConfigReadUUID.lowercased() {
+                enqueueRead(name: action.name, uuid: action.uuid, required: action.required) { [weak self] data in
+                    guard let self else { return }
+                    let mode = try SonyLocationCapabilityResolver.parseDD21(data)
+                    self.dd21ConfigHex = mode.valueHex
+                    self.includeTimezone = mode.includeTimezone
+                    self.packetSize = mode.packetSize
+                    self.appendLog("DD21 validated; packetSize=\(mode.packetSize)")
+                }
+            } else {
+                enqueueRead(name: action.name, uuid: action.uuid, required: action.required)
+            }
+        }
+    }
+
+    func decodeIdentity(_ data: Data) -> String? {
+        guard let value = String(data: data, encoding: .ascii)?
+            .trimmingCharacters(in: .controlCharacters.union(.whitespacesAndNewlines)),
+            !value.isEmpty,
+            value.unicodeScalars.allSatisfy({ $0.value >= 0x20 && $0.value <= 0x7E })
+        else { return nil }
+        return value
     }
 
     func sendLocationNow() {
@@ -376,8 +662,9 @@ final class CameraBLEManager: NSObject, ObservableObject {
         sendLocationOnce()
     }
 
-    private func startSendingLocations() {
+    func startSendingLocations() {
         cancelConnectionStageTimeout()
+        pendingReconnectArmed = false
         state = .linked
         appendLog(
             "Location link active; interval=\(Int(updateInterval))s; send photos only after DD11 location OK / Packets sent > 0"
@@ -386,14 +673,14 @@ final class CameraBLEManager: NSObject, ObservableObject {
         restartSendTimer()
     }
 
-    private func restartSendTimer() {
+    func restartSendTimer() {
         stopTimer()
         sendTimer = Timer.scheduledTimer(withTimeInterval: updateInterval, repeats: true) { [weak self] _ in
             self?.sendLocationOnce()
         }
     }
 
-    private func sendLocationOnce() {
+    func sendLocationOnce() {
         guard pendingOperation == nil else {
             appendLog("Skipping location send because a BLE operation is still pending")
             return
@@ -406,6 +693,15 @@ final class CameraBLEManager: NSObject, ObservableObject {
             appendLog("Ignoring invalid GPS fix")
             return
         }
+        guard Self.isLocationFresh(
+            location.timestamp,
+            relativeTo: Date(),
+            maximumAge: maximumLocationAge,
+            maximumFutureSkew: maximumFutureLocationSkew
+        ) else {
+            appendLog("Skip DD11: location fix is stale or future-dated")
+            return
+        }
 
         do {
             let packet = try SonyProtocol.encodeLocationPacket(
@@ -416,9 +712,7 @@ final class CameraBLEManager: NSObject, ObservableObject {
             )
             appendLog(
                 String(
-                    format: "Queue DD11 %.7f, %.7f acc=±%.0fm age=%.0fs bytes=%d",
-                    location.coordinate.latitude,
-                    location.coordinate.longitude,
+                    format: "Queue DD11 acc=±%.0fm age=%.0fs bytes=%d coordinate=[REDACTED]",
                     location.horizontalAccuracy,
                     Date().timeIntervalSince(location.timestamp),
                     packet.count
@@ -431,7 +725,7 @@ final class CameraBLEManager: NSObject, ObservableObject {
         }
     }
 
-    private func enqueueWrite(name: String, uuid: String, data: Data, required: Bool) {
+    func enqueueWrite(name: String, uuid: String, data: Data, required: Bool) {
         operationQueue.append(
             QueuedBLEOperation(name: name, required: required) { [weak self] in
                 self?.startWrite(name: name, uuid: uuid, data: data, required: required)
@@ -439,11 +733,11 @@ final class CameraBLEManager: NSObject, ObservableObject {
         )
     }
 
-    private func enqueueRead(
+    func enqueueRead(
         name: String,
         uuid: String,
         required: Bool,
-        onValue: ((Data) -> Void)? = nil
+        onValue: ((Data) throws -> Void)? = nil
     ) {
         operationQueue.append(
             QueuedBLEOperation(name: name, required: required) { [weak self] in
@@ -452,7 +746,7 @@ final class CameraBLEManager: NSObject, ObservableObject {
         )
     }
 
-    private func enqueueNotify(name: String, uuid: String, enabled: Bool, required: Bool) {
+    func enqueueNotify(name: String, uuid: String, enabled: Bool, required: Bool) {
         operationQueue.append(
             QueuedBLEOperation(name: name, required: required) { [weak self] in
                 self?.startNotify(name: name, uuid: uuid, enabled: enabled, required: required)
@@ -460,7 +754,7 @@ final class CameraBLEManager: NSObject, ObservableObject {
         )
     }
 
-    private func runNextOperationIfNeeded() {
+    func runNextOperationIfNeeded() {
         guard pendingOperation == nil else { return }
         guard !operationQueue.isEmpty else {
             let callback = onQueueEmpty
@@ -469,11 +763,12 @@ final class CameraBLEManager: NSObject, ObservableObject {
             return
         }
         let operation = operationQueue.removeFirst()
+        sanitizedOperationOrder.append(operation.name)
         appendLog("BLE operation: \(operation.name)")
         operation.start()
     }
 
-    private func startWrite(name: String, uuid: String, data: Data, required: Bool) {
+    func startWrite(name: String, uuid: String, data: Data, required: Bool) {
         guard let peripheral, let characteristic = characteristic(uuid) else {
             completeOperation(name: name, error: "Missing characteristic \(uuid)", required: required)
             return
@@ -481,21 +776,15 @@ final class CameraBLEManager: NSObject, ObservableObject {
         pendingOperation = .write(name: name, uuid: normalized(uuid), required: required)
         startOperationTimeout()
 
-        if characteristic.properties.contains(.write) {
-            peripheral.writeValue(data, for: characteristic, type: .withResponse)
+        guard characteristic.properties.contains(.write) else {
+            completeOperation(name: name, error: "Characteristic \(uuid) lacks write-with-response", required: required)
             return
         }
-        if characteristic.properties.contains(.writeWithoutResponse) {
-            appendLog("\(name) uses writeWithoutResponse")
-            peripheral.writeValue(data, for: characteristic, type: .withoutResponse)
-            completeOperation(name: name, error: nil, required: required)
-            return
-        }
-
-        completeOperation(name: name, error: "Characteristic \(uuid) is not writable", required: required)
+        acquisition.recordAttempt(actionName: name)
+        peripheral.writeValue(data, for: characteristic, type: .withResponse)
     }
 
-    private func startRead(name: String, uuid: String, required: Bool, onValue: ((Data) -> Void)?) {
+    func startRead(name: String, uuid: String, required: Bool, onValue: ((Data) throws -> Void)?) {
         guard let peripheral, let characteristic = characteristic(uuid) else {
             completeOperation(name: name, error: "Missing characteristic \(uuid)", required: required)
             return
@@ -505,394 +794,202 @@ final class CameraBLEManager: NSObject, ObservableObject {
         peripheral.readValue(for: characteristic)
     }
 
-    private func startNotify(name: String, uuid: String, enabled: Bool, required: Bool) {
+    func startNotify(name: String, uuid: String, enabled: Bool, required: Bool) {
         guard let peripheral, let characteristic = characteristic(uuid) else {
             completeOperation(name: name, error: "Missing characteristic \(uuid)", required: required)
             return
         }
         pendingOperation = .notify(name: name, uuid: normalized(uuid), required: required, enabled: enabled)
         startOperationTimeout()
+        if enabled {
+            acquisition.recordAttempt(actionName: name)
+        }
         peripheral.setNotifyValue(enabled, for: characteristic)
     }
 
-    private func completeOperation(name: String, error: String?, required: Bool) {
+    func completeOperation(name: String, error: String?, required: Bool) {
         pendingOperation = nil
         stopOperationTimeout()
         if let error {
             appendLog("\(name) failed: \(error)")
+            if name.hasPrefix("DD31 disable") || name.hasPrefix("DD30 unlock") || name.hasPrefix("DD01 notify stop") {
+                compensationErrors.append("\(name): \(error)")
+            }
+            if cancelAfterCurrentOperation {
+                cancelAfterCurrentOperation = false
+                beginCompensation(finalState: .stopped, disconnectAfter: true)
+                return
+            }
             if required {
+                if name == "EE01 pairing init" {
+                    pairingStatus = "Pairing initialization failed: \(error)"
+                }
                 fail(error)
                 return
             }
         } else {
             appendLog("\(name) OK")
+            acquisition.recordSuccess(actionName: name)
+            if name == "DD31 disable" { acquisition.dd31 = false }
+            if name == "DD30 unlock" { acquisition.dd30 = false }
+            if name == "DD01 notify stop" { acquisition.dd01 = false }
             if name == "DD11 location" {
                 packetsSent += 1
                 lastSentAt = Date()
+                persistValidatedIdentity()
+            }
+        }
+        if cancelAfterCurrentOperation {
+            cancelAfterCurrentOperation = false
+            beginCompensation(finalState: .stopped, disconnectAfter: true)
+            return
+        }
+        runNextOperationIfNeeded()
+    }
+
+    func fail(_ message: String) {
+        cancelConnectionStageTimeout()
+        manualStopRequested = true
+        activeSessionRequested = false
+        lastError = message
+        state = .failed
+        stopTimer()
+        operationQueue.removeAll()
+        appendLog("Failed: \(message)")
+        guard pendingOperation == nil else {
+            cancelAfterCurrentOperation = true
+            return
+        }
+        beginCompensation(finalState: .failed, disconnectAfter: true)
+    }
+
+    func beginCompensation(finalState: CameraConnectionState, disconnectAfter: Bool) {
+        operationQueue.removeAll()
+        onQueueEmpty = nil
+        compensationInProgress = true
+        guard peripheral != nil else {
+            let cleanupNeeded = !acquisition.compensation.isEmpty
+            if cleanupDiagnostic?.hasPrefix("Incomplete cleanup") != true {
+                cleanupDiagnostic = cleanupNeeded ? "Incomplete cleanup: camera is disconnected" : "Cleanup not needed"
+            }
+            if cleanupNeeded {
+                activeSessionRequested = false
+                manualStopRequested = true
+                setUserLinkIntent(active: false)
+                lastError = cleanupDiagnostic
+            }
+            compensationInProgress = false
+            state = cleanupNeeded ? .failed : finalState
+            return
+        }
+        compensationErrors.removeAll()
+        let compensation = acquisition.compensation
+        if !compensation.isEmpty {
+            state = .stopping
+        }
+        for action in compensation {
+            enqueue(action)
+        }
+        onQueueEmpty = { [weak self] in
+            guard let self else { return }
+            self.compensationInProgress = false
+            if self.compensationErrors.isEmpty {
+                self.cleanupDiagnostic = "Cleanup complete"
+            } else {
+                self.cleanupDiagnostic = "Incomplete cleanup: " + self.compensationErrors.joined(separator: "; ")
+            }
+            self.state = finalState
+            if disconnectAfter, let peripheral = self.peripheral {
+                self.centralManager.cancelPeripheralConnection(peripheral)
+            } else if self.peripheral == nil {
+                self.state = finalState
             }
         }
         runNextOperationIfNeeded()
     }
 
-    private func fail(_ message: String) {
-        cancelConnectionStageTimeout()
-        manualStopRequested = true
-        lastError = message
-        state = .failed
-        stopTimer()
-        stopOperationTimeout()
-        operationQueue.removeAll()
-        pendingOperation = nil
-        appendLog("Failed: \(message)")
+    func persistValidatedIdentity() {
+        guard let peripheral, let identity = currentIdentity, let profile = resolvedProfile else { return }
+        identityStore.save(
+            SonyValidatedIdentityRecord(
+                peripheralID: peripheral.identifier.uuidString,
+                identity: identity,
+                profile: profile.kind,
+                descriptorFingerprint: SonyLocationCapabilityResolver.descriptorFingerprint(descriptors)
+            )
+        )
     }
 
-    private func stopTimer() {
+    func stopTimer() {
         sendTimer?.invalidate()
         sendTimer = nil
     }
 
-    private func startOperationTimeout() {
+    func startOperationTimeout() {
         stopOperationTimeout()
         operationTimeoutTimer = Timer.scheduledTimer(withTimeInterval: operationTimeout, repeats: false) { [weak self] _ in
             self?.handleOperationTimeout()
         }
     }
 
-    private func stopOperationTimeout() {
+    func stopOperationTimeout() {
         operationTimeoutTimer?.invalidate()
         operationTimeoutTimer = nil
     }
 
-    private func startConnectionStageTimeout(_ stage: ForegroundConnectionStage) {
+    func startConnectionStageTimeout(_ stage: ForegroundConnectionStage) {
         foregroundTimeoutSession.transition(to: stage)
     }
 
-    private func cancelConnectionStageTimeout() {
+    func cancelConnectionStageTimeout() {
         foregroundTimeoutSession.end()
     }
 
-    private func handleConnectionStageTimeout(stage: ForegroundConnectionStage) {
+    func handleConnectionStageTimeout(stage: ForegroundConnectionStage) {
         manualStopRequested = true
         resumeWhenBluetoothPowersOn = false
         centralManager.stopScan()
-        if let peripheral, peripheral.state != .disconnected {
-            centralManager.cancelPeripheralConnection(peripheral)
-        }
-        self.peripheral = nil
-        stopTimer()
-        stopOperationTimeout()
-        operationQueue.removeAll()
-        pendingOperation = nil
-        onQueueEmpty = nil
-        characteristics.removeAll()
-        didStartLocationSetup = false
         pendingReconnectArmed = false
         let message = "\(stage.userFacingName) timed out. Make sure the camera is nearby and ready for its Bluetooth location link."
-        lastError = message
-        state = .failed
-        appendLog("Failed: \(message)")
+        fail(message)
     }
 
-    private func handleOperationTimeout() {
+    func handleOperationTimeout() {
         guard let pendingOperation else { return }
+        recordTimedOutCallback(for: pendingOperation)
         self.pendingOperation = nil
         appendLog("\(pendingOperation.name) timed out after \(Int(operationTimeout))s")
-        if pendingOperation.required {
+        if pendingOperation.name.hasPrefix("DD31 disable")
+            || pendingOperation.name.hasPrefix("DD30 unlock")
+            || pendingOperation.name.hasPrefix("DD01 notify stop") {
+            compensationErrors.append("\(pendingOperation.name): timed out")
+        }
+        if cancelAfterCurrentOperation {
+            cancelAfterCurrentOperation = false
+            beginCompensation(finalState: .stopped, disconnectAfter: true)
+        } else if pendingOperation.required {
             fail("\(pendingOperation.name) timed out")
         } else {
             runNextOperationIfNeeded()
         }
     }
 
-    private func appendLog(_ message: String) {
+    func appendLog(_ message: String) {
         let timestamp = Date().formatted(date: .omitted, time: .standard)
         let line = "\(timestamp)  \(message)"
         diagnosticsStore.append(line)
-        print(line)
-        logger.info("\(line, privacy: .public)")
+        let sanitizedLine = diagnosticsStore.lines.last ?? "Diagnostic event [REDACTED]"
+        print(sanitizedLine)
+        logger.info("\(sanitizedLine, privacy: .public)")
     }
 
-    private func remember(peripheral: CBPeripheral) {
+    func remember(peripheral: CBPeripheral) {
         let identifier = peripheral.identifier.uuidString
         guard rememberedPeripheralID != identifier else { return }
         rememberedPeripheralID = identifier
         UserDefaults.standard.set(identifier, forKey: CameraBLEDefaults.rememberedPeripheralID)
-        appendLog("Remembered camera peripheral \(identifier)")
+        appendLog("Remembered camera for private direct reconnect")
     }
 
-    private func characteristic(_ uuid: String) -> CBCharacteristic? {
-        characteristics[normalized(uuid)]
-    }
 
-    private func normalized(_ uuid: String) -> String {
-        let lowercased = uuid.lowercased()
-        let bluetoothBaseSuffix = "-0000-1000-8000-00805f9b34fb"
-        if lowercased.hasPrefix("0000"), lowercased.hasSuffix(bluetoothBaseSuffix) {
-            return String(lowercased.dropFirst(4).prefix(4))
-        }
-        return lowercased
-    }
-
-    private func normalized(_ uuid: CBUUID) -> String {
-        normalized(uuid.uuidString)
-    }
-}
-
-extension CameraBLEManager: CBCentralManagerDelegate {
-    func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        switch central.state {
-        case .poweredOn:
-            appendLog("Bluetooth powered on")
-            if state == .bluetoothUnavailable {
-                state = .idle
-            }
-            if resumeWhenBluetoothPowersOn {
-                resumeWhenBluetoothPowersOn = false
-                guard locationProvider != nil else {
-                    appendLog("Background link waiting for location provider")
-                    return
-                }
-                armBackgroundReconnect(reason: "Bluetooth powered on")
-            }
-        case .poweredOff, .unauthorized, .unsupported, .resetting, .unknown:
-            cancelConnectionStageTimeout()
-            state = .bluetoothUnavailable
-            appendLog("Bluetooth state changed: \(central.state.rawValue)")
-        @unknown default:
-            state = .bluetoothUnavailable
-        }
-    }
-
-    func centralManager(
-        _ central: CBCentralManager,
-        didDiscover peripheral: CBPeripheral,
-        advertisementData: [String: Any],
-        rssi RSSI: NSNumber
-    ) {
-        guard !manualStopRequested else { return }
-        let localName = advertisementData[CBAdvertisementDataLocalNameKey] as? String
-        let name = peripheral.name ?? localName ?? ""
-        let manufacturerData = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data
-        let info = SonyProtocol.parseAdvertisement(manufacturerData: manufacturerData)
-        let matchesName = name.localizedCaseInsensitiveContains(targetName) || name.localizedCaseInsensitiveContains("ILCE-")
-        let matchesSonyCamera = info?.isCamera == true
-
-        guard matchesName || matchesSonyCamera else { return }
-
-        discoveredCameraName = name.isEmpty ? "Sony camera" : name
-        appendLog("Found \(discoveredCameraName ?? "Sony camera") RSSI=\(RSSI)")
-        if let info {
-            appendLog("Sony protocolVersion=\(info.protocolVersion.map(String.init) ?? "unknown")")
-        }
-        state = .connecting
-        startConnectionStageTimeout(.connecting)
-        pendingReconnectArmed = false
-        central.stopScan()
-        self.peripheral = peripheral
-        remember(peripheral: peripheral)
-        central.connect(peripheral, options: connectOptions)
-    }
-
-    func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        guard !manualStopRequested else {
-            central.cancelPeripheralConnection(peripheral)
-            return
-        }
-        appendLog("Connected")
-        pendingReconnectArmed = false
-        reconnectRetryTimer?.invalidate()
-        reconnectRetryTimer = nil
-        remember(peripheral: peripheral)
-        beginServiceDiscovery(for: peripheral)
-    }
-
-    func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
-        let wasForegroundAttempt = foregroundTimeoutSession.isActive
-        cancelConnectionStageTimeout()
-        appendLog(error?.localizedDescription ?? "Failed to connect")
-        pendingReconnectArmed = false
-        self.peripheral = nil
-        if wasForegroundAttempt {
-            fail(error?.localizedDescription ?? "Failed to connect")
-            return
-        }
-        guard backgroundLinkEnabled, !manualStopRequested else {
-            fail(error?.localizedDescription ?? "Failed to connect")
-            return
-        }
-        scheduleReconnectRetry(reason: error?.localizedDescription ?? "connect failed")
-        scanForCamera()
-    }
-
-    func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
-        let wasForegroundAttempt = foregroundTimeoutSession.isActive
-        cancelConnectionStageTimeout()
-        appendLog("Disconnected")
-        self.peripheral = nil
-        stopTimer()
-        stopOperationTimeout()
-        operationQueue.removeAll()
-        pendingOperation = nil
-        characteristics.removeAll()
-        didStartLocationSetup = false
-
-        guard state != .stopped, state != .stopping, state != .failed else { return }
-        if wasForegroundAttempt {
-            fail(error?.localizedDescription ?? "Camera disconnected while connecting.")
-            return
-        }
-        guard backgroundLinkEnabled, !manualStopRequested else {
-            if let error {
-                fail(error.localizedDescription)
-            } else {
-                state = .idle
-            }
-            return
-        }
-
-        appendLog("Background link will arm pending reconnect after disconnect")
-        armBackgroundReconnect(reason: "peripheral disconnected")
-    }
-
-    func centralManager(_ central: CBCentralManager, willRestoreState dict: [String: Any]) {
-        appendLog("CoreBluetooth restored state")
-        if let peripherals = dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral],
-           let restoredPeripheral = peripherals.first {
-            appendLog("Restored peripheral \(restoredPeripheral.identifier.uuidString) state=\(restoredPeripheral.state.rawValue)")
-            peripheral = restoredPeripheral
-            restoredPeripheral.delegate = self
-            remember(peripheral: restoredPeripheral)
-            if restoredPeripheral.state == .connected {
-                pendingReconnectArmed = false
-                beginServiceDiscovery(for: restoredPeripheral)
-            } else if backgroundLinkEnabled {
-                pendingReconnectArmed = true
-                state = .connecting
-                central.connect(restoredPeripheral, options: connectOptions)
-            }
-        }
-    }
-}
-
-extension CameraBLEManager: CBPeripheralDelegate {
-    func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
-        guard !manualStopRequested else { return }
-        if let error {
-            fail(error.localizedDescription)
-            return
-        }
-        for service in peripheral.services ?? [] {
-            let characteristicUUIDs = [
-                SonyProtocol.locationStatusNotifyUUID,
-                SonyProtocol.locationDataWriteUUID,
-                SonyProtocol.locationConfigReadUUID,
-                SonyProtocol.locationLockUUID,
-                SonyProtocol.locationEnableUUID,
-                SonyProtocol.timeCorrectionUUID,
-                SonyProtocol.areaAdjustmentUUID,
-                SonyProtocol.pairingInitUUID,
-            ].map(CBUUID.init(string:))
-            peripheral.discoverCharacteristics(characteristicUUIDs, for: service)
-        }
-    }
-
-    func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
-        guard !manualStopRequested else { return }
-        if let error {
-            fail(error.localizedDescription)
-            return
-        }
-        for characteristic in service.characteristics ?? [] {
-            characteristics[normalized(characteristic.uuid)] = characteristic
-            appendLog("Characteristic \(characteristic.uuid.uuidString) props=\(characteristic.properties.rawValue)")
-        }
-        maybeBeginLocationSetup()
-    }
-
-    func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
-        guard case let .write(name, uuid, required) = pendingOperation,
-              uuid == normalized(characteristic.uuid)
-        else {
-            return
-        }
-        completeOperation(name: name, error: error?.localizedDescription, required: required)
-    }
-
-    func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-        let characteristicUUID = normalized(characteristic.uuid)
-        if case let .read(name, uuid, required, onValue) = pendingOperation, uuid == characteristicUUID {
-            if let error {
-                completeOperation(name: name, error: error.localizedDescription, required: required)
-                return
-            }
-            let data = characteristic.value ?? Data()
-            appendLog("\(name) value=\(SonyProtocol.hex(data))")
-            onValue?(data)
-            completeOperation(name: name, error: nil, required: required)
-            return
-        }
-
-        if characteristicUUID == normalized(SonyProtocol.locationStatusNotifyUUID), let data = characteristic.value {
-            appendLog("DD01 notify \(SonyProtocol.hex(data))")
-        }
-    }
-
-    func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
-        let characteristicUUID = normalized(characteristic.uuid)
-        if case let .notify(name, uuid, required, enabled) = pendingOperation, uuid == characteristicUUID {
-            if let error {
-                completeOperation(name: name, error: error.localizedDescription, required: required)
-                return
-            }
-            guard characteristic.isNotifying == enabled else {
-                completeOperation(name: name, error: "Notify state mismatch", required: required)
-                return
-            }
-            completeOperation(name: name, error: nil, required: required)
-            return
-        }
-
-        if let error {
-            appendLog("Notify state failed for \(characteristic.uuid.uuidString): \(error.localizedDescription)")
-        } else {
-            appendLog("Notify state \(characteristic.uuid.uuidString) isNotifying=\(characteristic.isNotifying)")
-        }
-    }
-}
-
-private struct QueuedBLEOperation {
-    let name: String
-    let required: Bool
-    let start: () -> Void
-}
-
-private enum PendingBLEOperation {
-    case write(name: String, uuid: String, required: Bool)
-    case read(name: String, uuid: String, required: Bool, onValue: ((Data) -> Void)?)
-    case notify(name: String, uuid: String, required: Bool, enabled: Bool)
-
-    var name: String {
-        switch self {
-        case let .write(name, _, _), let .read(name, _, _, _), let .notify(name, _, _, _):
-            name
-        }
-    }
-
-    var required: Bool {
-        switch self {
-        case let .write(_, _, required), let .read(_, _, required, _), let .notify(_, _, required, _):
-            required
-        }
-    }
-}
-
-private enum CameraBLEDefaults {
-    static let restorationIdentifier = "dev.narumi.cameragpslink.central"
-    static let backgroundLinkEnabled = "backgroundLinkEnabled"
-    static let lowPowerModeEnabled = "lowPowerModeEnabled"
-    static let rememberedPeripheralID = "rememberedPeripheralID"
-    static let foregroundUpdateInterval: TimeInterval = 30
-    static let lowPowerUpdateInterval: TimeInterval = 120
-    static let foregroundReconnectRetryInterval: TimeInterval = 30
-    static let lowPowerReconnectRetryInterval: TimeInterval = 120
 }

@@ -101,6 +101,7 @@ def test_snapshot_reads_every_readable_characteristic_in_one_session_without_wri
     model_uuid = "0000cc0b-0000-1000-8000-00805f9b34fb"
     write_only_uuid = "0000cc08-0000-1000-8000-00805f9b34fb"
     unavailable_uuid = "0000cc06-0000-1000-8000-00805f9b34fb"
+    dd21_uuid = "0000dd21-0000-1000-8000-00805f9b34fb"
     services = (
         FakeService(
             uuid="8000cc00-cc00-ffff-ffff-ffffffffffff",
@@ -111,6 +112,15 @@ def test_snapshot_reads_every_readable_characteristic_in_one_session_without_wri
                 FakeCharacteristic(unavailable_uuid, 54, ("read",)),
             ),
         ),
+        FakeService(
+            uuid="8000dd00-dd00-ffff-ffff-ffffffffffff",
+            characteristics=(
+                FakeCharacteristic("0000dd11-0000-1000-8000-00805f9b34fb", 90, ("write",)),
+                FakeCharacteristic(dd21_uuid, 91, ("read",)),
+                FakeCharacteristic("0000dd30-0000-1000-8000-00805f9b34fb", 92, ("write",)),
+                FakeCharacteristic("0000dd31-0000-1000-8000-00805f9b34fb", 93, ("write",)),
+            ),
+        ),
     )
     operations: list[str] = []
     client = StrictReadOnlyClient(
@@ -119,6 +129,7 @@ def test_snapshot_reads_every_readable_characteristic_in_one_session_without_wri
             firmware_uuid: b"2.01",
             model_uuid: b"ILCE-7CM2",
             unavailable_uuid: OSError("Application-specific Error 0x9D"),
+            dd21_uuid: bytes.fromhex("06 10 00 9c 02 00 00"),
         },
         operations=operations,
     )
@@ -138,15 +149,53 @@ def test_snapshot_reads_every_readable_characteristic_in_one_session_without_wri
     assert snapshot is not None
     assert snapshot.summary["model"] == "ILCE-7CM2"
     assert snapshot.summary["firmware_version"] == "2.01"
-    assert len(snapshot.characteristics) == 3
-    assert snapshot.characteristics[-1].status is DecodeStatus.UNAVAILABLE
+    assert len(snapshot.characteristics) == 4
+    assert snapshot.characteristics[2].status is DecodeStatus.UNAVAILABLE
+    assert snapshot.location_compatibility is not None
+    assert snapshot.location_compatibility["profile"]["kind"] == "modern"
+    assert snapshot.location_compatibility["dd21_mode"]["packet_size"] == 95
     assert operations == [
         "connect",
         f"read:{firmware_uuid}",
         f"read:{model_uuid}",
         f"read:{unavailable_uuid}",
+        f"read:{dd21_uuid}",
         "disconnect",
     ]
+
+
+def test_snapshot_retains_sanitized_dd21_read_failure() -> None:
+    dd21_uuid = "0000dd21-0000-1000-8000-00805f9b34fb"
+    services = (
+        FakeService(
+            uuid="8000dd00-dd00-ffff-ffff-ffffffffffff",
+            characteristics=(
+                FakeCharacteristic("0000dd11-0000-1000-8000-00805f9b34fb", 90, ("write",)),
+                FakeCharacteristic(dd21_uuid, 91, ("read",)),
+                FakeCharacteristic("0000dd30-0000-1000-8000-00805f9b34fb", 92, ("write",)),
+                FakeCharacteristic("0000dd31-0000-1000-8000-00805f9b34fb", 93, ("write",)),
+            ),
+        ),
+    )
+    client = StrictReadOnlyClient(
+        services=services,
+        values={dd21_uuid: OSError("Application-specific Error 0x9D for PRIVATE-ID")},
+        operations=[],
+    )
+
+    snapshot = asyncio.run(
+        capture_camera_info(
+            targets=("ILCE-7CM2",),
+            scan_timeout=10,
+            connect_timeout=25,
+            find_device=finder(scanned_camera()),
+            client_factory=lambda *_args, **_kwargs: client,
+        )
+    )
+
+    assert snapshot is not None and snapshot.location_compatibility is not None
+    assert snapshot.location_compatibility["dd21_error"] == "GATT status 0x9D"
+    assert "PRIVATE-ID" not in str(snapshot.to_dict(include_raw=False, show_sensitive=False))
 
 
 def test_snapshot_returns_none_when_target_is_not_found() -> None:

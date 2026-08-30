@@ -143,5 +143,11 @@ xcuserdata/
 DerivedData/
 
 # Project
+# Camera evidence images stay local; commit only sanitized numeric evidence.
+/*.HIF
+/*.HEIF
+/*.HEIC
+/*.JPG
+/*.JPEG
 third_party/*
 !third_party/references.md

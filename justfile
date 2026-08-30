@@ -16,7 +16,11 @@ list:
     just --list
 
 # Run the full local verification gate
-check: py-check ios-check
+check: source-line-check py-check ios-check
+
+# Reject Python and Swift program sources over 1000 lines
+source-line-check:
+    uv run python scripts/check_source_lines.py
 
 # Format Python code using ruff
 format:
@@ -51,7 +55,7 @@ ios-open:
 
 # Run the Swift DD11 protocol and location policy smoke test
 ios-smoke:
-    swiftc ios/CameraGPSLink/CameraGPSLink/SonyProtocol.swift ios/CameraGPSLink/CameraGPSLink/LocationProvider.swift ios/CameraGPSLink/CameraGPSLinkTests/main.swift -o {{ios_smoke}}
+    swiftc ios/CameraGPSLink/CameraGPSLink/SonyProtocol.swift ios/CameraGPSLink/CameraGPSLink/SonyLocationProfile.swift ios/CameraGPSLink/CameraGPSLink/SonyLocationSessionPlan.swift ios/CameraGPSLink/CameraGPSLink/LocationProvider.swift ios/CameraGPSLink/CameraGPSLinkTests/main.swift -o {{ios_smoke}}
     {{ios_smoke}}
 
 # Type check all Swift sources
@@ -90,10 +94,13 @@ ios-unit-test: ios-test-prepare
 ios-ui-test: ios-test-prepare
     DEVELOPER_DIR={{xcode_dev_dir}} xcodebuild test -project {{ios_project}} -scheme {{ios_scheme}} -destination '{{ios_test_destination}}' -only-testing:CameraGPSLinkUITests
 
-# Run all iOS XCTest suites
+# Run all iOS XCTest suites, resetting the dedicated simulator between test hosts
 [no-exit-message]
-ios-test: ios-test-prepare
-    DEVELOPER_DIR={{xcode_dev_dir}} xcodebuild test -project {{ios_project}} -scheme {{ios_scheme}} -destination '{{ios_test_destination}}'
+ios-test:
+    DEVELOPER_DIR={{xcode_dev_dir}} xcrun simctl delete '{{ios_test_device_name}}' >/dev/null 2>&1 || true
+    just ios-unit-test
+    DEVELOPER_DIR={{xcode_dev_dir}} xcrun simctl delete '{{ios_test_device_name}}' >/dev/null 2>&1 || true
+    just ios-ui-test
 
 # Run all iOS compile/smoke/test checks
 ios-check: ios-smoke ios-typecheck ios-lint-project ios-build-sim ios-build-device-nosign ios-test
@@ -118,6 +125,14 @@ ble-gatt target="ILCE-7CM2":
 ble-info target="ILCE-7CM2":
     uv run sonygeotag camera-info --target {{target}} --timeout 15 --pair
 
+# Capture a sanitized, strict read-only location compatibility snapshot
+compatibility-snapshot target="ILCE-7CM2":
+    uv run sonygeotag compatibility-snapshot --target {{target}} --timeout 15 --pair
+
+# Verify matching GPS EXIF in a JPEG or HEIF image captured during the DD11 session
+exif-verify photo lat lon not_before:
+    uv run sonygeotag verify-exif --photo {{photo}} --lat {{lat}} --lon {{lon}} --not-before {{not_before}}
+
 # Open the live read-only camera status TUI
 ble-monitor target="ILCE-7CM2" interval="2":
     uv run sonygeotag monitor --target {{target}} --interval {{interval}} --pair
@@ -130,9 +145,9 @@ ble-notify target="ILCE-7CM2" duration="60":
 location-dry-run lat lon:
     uv run sonygeotag send-location --lat {{lat}} --lon {{lon}}
 
-# Write GPS to the camera; requires explicit lat/lon and camera pairing mode when needed
+# Write GPS to an already initialized camera; requires explicit authorization and lat/lon
 location-write lat lon target="ILCE-7CM2" duration="60" interval="30":
-    uv run sonygeotag send-location --target {{target}} --lat {{lat}} --lon {{lon}} --write --duration {{duration}} --interval {{interval}} --pair --vendor-pair-init
+    uv run sonygeotag send-location --target {{target}} --lat {{lat}} --lon {{lon}} --write --duration {{duration}} --interval {{interval}} --pair
 
 # Remove local build/test artifacts
 clean:

@@ -56,6 +56,8 @@ enum GeotaggingPhase: Equatable {
     case searching
     case connecting
     case preparing
+    case approvalRequired
+    case unsupported
     case waitingForLocation
     case sendingFirstLocation
     case ready
@@ -68,6 +70,7 @@ enum GeotaggingPhase: Equatable {
 enum GeotaggingAction: Equatable {
     case start
     case cancel
+    case approveExperimental
     case retry
     case stop
     case sendNow
@@ -97,6 +100,13 @@ struct GeotaggingSnapshot: Equatable {
     var pendingReconnectArmed: Bool
     var transientError: String?
     var isRequestingPermission = false
+    var experimentalApprovalPending = false
+    var profile: SonyLocationProfileKind?
+    var confidence: SonySupportConfidence = .experimental
+    var firmware: String?
+    var protocolVersion: Int?
+    var packetSize: Int?
+    var cleanupDiagnostic: String?
 }
 
 struct GeotaggingViewState: Equatable {
@@ -129,8 +139,8 @@ struct GeotaggingViewState: Equatable {
             readiness: readiness(for: snapshot, lastUpdate: lastUpdate),
             primaryAction: primary,
             primaryActionLabel: label(for: primary),
-            secondaryAction: phase == .ready ? .sendNow : nil,
-            secondaryActionLabel: phase == .ready ? "Send Current Location" : nil,
+            secondaryAction: phase == .ready ? .sendNow : (phase == .approvalRequired ? .cancel : nil),
+            secondaryActionLabel: phase == .ready ? "Send Current Location" : (phase == .approvalRequired ? "Cancel" : nil),
             showsProgress: [.requestingPermission, .searching, .connecting, .preparing, .sendingFirstLocation, .stopping].contains(phase),
             lastUpdateText: lastUpdate,
             notice: needsBackgroundPermission ? "Background Permission Needed" : nil,
@@ -155,11 +165,15 @@ struct GeotaggingViewState: Equatable {
             return snapshot.locationPermission == .notDetermined ? .notConnected : .notConnected
         case .bluetoothUnavailable, .failed:
             return .needsAttention
+        case .awaitingApproval:
+            return .approvalRequired
+        case .unsupported:
+            return .unsupported
         case .scanning:
             return .searching
         case .connecting:
             return .connecting
-        case .discovering, .enablingLocation:
+        case .discovering, .enablingLocation, .pairing:
             return .preparing
         case .linked:
             guard snapshot.packetsSent > 0, let lastSentAt = snapshot.lastSentAt else {
@@ -192,6 +206,21 @@ struct GeotaggingViewState: Equatable {
             return ("Connecting…", "Connecting securely to \(snapshot.cameraName ?? snapshot.targetName).")
         case .preparing:
             return ("Preparing Location…", "Setting up the camera to receive iPhone location updates.")
+        case .approvalRequired:
+            let identity = [snapshot.cameraName ?? snapshot.targetName, snapshot.firmware.map { "firmware \($0)" }]
+                .compactMap { $0 }
+                .joined(separator: ", ")
+            let profile = snapshot.profile?.rawValue ?? "unknown"
+            return (
+                "Experimental Camera Profile",
+                "Review \(identity), protocol \(snapshot.protocolVersion.map(String.init) ?? "unknown"), "
+                    + "\(profile) profile before allowing camera writes."
+            )
+        case .unsupported:
+            return (
+                "Unsupported Camera Profile",
+                snapshot.transientError ?? "This camera’s discovered location characteristics cannot be used safely."
+            )
         case .waitingForLocation:
             return ("Waiting for iPhone Location", "The camera is connected. Move to an open area if a GPS fix takes too long.")
         case .sendingFirstLocation:
@@ -226,15 +255,17 @@ struct GeotaggingViewState: Equatable {
         switch phase {
         case .notConnected, .stopped:
             return .start
-        case .requestingPermission, .searching, .connecting, .preparing:
+        case .requestingPermission, .searching, .connecting, .preparing, .unsupported:
             return .cancel
+        case .approvalRequired:
+            return .approveExperimental
         case .waitingForLocation, .sendingFirstLocation, .ready:
             return .stop
         case .needsAttention:
             if snapshot.locationPermission == .denied || snapshot.locationPermission == .restricted {
                 return .openSettings
             }
-            return .retry
+            return snapshot.cameraState == .linked ? .sendNow : .retry
         case .waitingInBackground, .stopping:
             return nil
         }
@@ -246,6 +277,8 @@ struct GeotaggingViewState: Equatable {
             "Start Geotagging"
         case .cancel:
             "Cancel"
+        case .approveExperimental:
+            "Continue with Experimental Profile"
         case .retry:
             "Retry"
         case .stop:
@@ -306,8 +339,12 @@ struct GeotaggingViewState: Equatable {
             "Searching"
         case .connecting:
             "Connecting"
-        case .discovering, .enablingLocation:
+        case .discovering, .enablingLocation, .pairing:
             "Preparing"
+        case .awaitingApproval:
+            "Approval required"
+        case .unsupported:
+            "Unsupported"
         case .linked:
             "Connected"
         case .stopping:

@@ -14,9 +14,19 @@ struct CameraServiceSnapshot: Equatable {
     var lastSentAt: Date?
     var includeTimezone: Bool
     var dd21ConfigHex: String?
+    var firmware: String?
+    var protocolVersion: Int?
+    var profile: SonyLocationProfileKind?
+    var confidence: SonySupportConfidence
+    var packetSize: Int?
+    var experimentalApprovalPending: Bool
+    var pairingConfirmationPending: Bool
+    var pairingStatus: String
+    var cleanupDiagnostic: String?
+    var operationOrder: [String]
     var lastError: String?
     var pendingReconnectArmed: Bool
-    var rememberedPeripheralID: String?
+    var activeLinkIntent: Bool
     var updateInterval: TimeInterval
 }
 
@@ -38,6 +48,10 @@ protocol CameraLinkServicing: AnyObject {
     func startForegroundLink()
     func resumeBackgroundLink()
     func cancelCurrentAttempt()
+    func approveExperimentalProfile()
+    func requestPairingInitialization()
+    func confirmPairingInitialization()
+    func cancelPairingInitialization()
     func stopLink()
     func sendLocationNow()
     func sendLocationIfDue()
@@ -80,9 +94,19 @@ final class CameraBLEServiceAdapter: CameraLinkServicing {
             lastSentAt: manager.lastSentAt,
             includeTimezone: manager.includeTimezone,
             dd21ConfigHex: manager.dd21ConfigHex,
+            firmware: manager.detectedFirmware,
+            protocolVersion: manager.advertisementProtocolVersion,
+            profile: manager.resolvedProfile?.kind,
+            confidence: manager.supportConfidence,
+            packetSize: manager.packetSize,
+            experimentalApprovalPending: manager.experimentalApprovalPending,
+            pairingConfirmationPending: manager.pairingConfirmationPending,
+            pairingStatus: manager.pairingStatus,
+            cleanupDiagnostic: manager.cleanupDiagnostic,
+            operationOrder: manager.sanitizedOperationOrder,
             lastError: manager.lastError,
             pendingReconnectArmed: manager.pendingReconnectArmed,
-            rememberedPeripheralID: manager.rememberedPeripheralID,
+            activeLinkIntent: manager.userLinkIntentActive,
             updateInterval: manager.updateInterval
         )
     }
@@ -109,6 +133,22 @@ final class CameraBLEServiceAdapter: CameraLinkServicing {
 
     func cancelCurrentAttempt() {
         manager.cancelCurrentAttempt()
+    }
+
+    func approveExperimentalProfile() {
+        manager.approveExperimentalProfile()
+    }
+
+    func requestPairingInitialization() {
+        manager.requestPairingInitialization()
+    }
+
+    func confirmPairingInitialization() {
+        manager.confirmPairingInitialization()
+    }
+
+    func cancelPairingInitialization() {
+        manager.cancelPairingInitialization()
     }
 
     func stopLink() {
@@ -197,11 +237,13 @@ final class CameraGPSLinkAppModel: ObservableObject {
     private let openSettingsAction: () -> Void
     private let backgroundRefreshIdentifier = "dev.narumi.cameragpslink.refresh"
     private var pendingStart = false
+    private var linkRequested = false
     private var isForeground = true
     private var lastHandledForeground: Bool?
     private var transientError: String?
     private var didRegisterBackgroundTasks = false
     private var backgroundTaskCompletion: DispatchWorkItem?
+    private var readinessTimer: Timer?
     private var isProductionRuntime = false
 
     var cameraSnapshot: CameraServiceSnapshot { cameraService.snapshot }
@@ -263,7 +305,8 @@ final class CameraGPSLinkAppModel: ObservableObject {
                 settings: loadedSettings,
                 isForeground: true,
                 pendingStart: false,
-                transientError: initialError
+                transientError: initialError,
+                now: now()
             ),
             now: now()
         )
@@ -278,8 +321,18 @@ final class CameraGPSLinkAppModel: ObservableObject {
             locationService?.snapshot.currentLocation
         }
         cameraService.configure(settings: settings)
+        linkRequested = cameraService.snapshot.activeLinkIntent
         locationService.configure(settings: settings, isForeground: true)
+        readinessTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.refreshTimeDerivedState()
+            }
+        }
         refreshViewState()
+    }
+
+    deinit {
+        readinessTimer?.invalidate()
     }
 
     func handleScenePhase(isForeground: Bool) {
@@ -288,7 +341,7 @@ final class CameraGPSLinkAppModel: ObservableObject {
         self.isForeground = isForeground
         locationService.configure(settings: settings, isForeground: isForeground)
 
-        if settings.backgroundLinkEnabled {
+        if settings.backgroundLinkEnabled, linkRequested {
             if locationService.snapshot.permission.allowsForegroundLocation {
                 locationService.startUpdating()
                 cameraService.resumeBackgroundLink()
@@ -304,6 +357,8 @@ final class CameraGPSLinkAppModel: ObservableObject {
             startGeotagging()
         case .cancel:
             cancelCurrentAttempt()
+        case .approveExperimental:
+            approveExperimentalProfile()
         case .retry:
             retry()
         case .stop:
@@ -339,14 +394,37 @@ final class CameraGPSLinkAppModel: ObservableObject {
 
     func cancelCurrentAttempt() {
         pendingStart = false
+        linkRequested = false
         transientError = nil
         cameraService.cancelCurrentAttempt()
         locationService.stopUpdating()
         refreshViewState()
     }
 
+    func approveExperimentalProfile() {
+        transientError = nil
+        cameraService.approveExperimentalProfile()
+        refreshViewState()
+    }
+
+    func requestPairingInitialization() {
+        cameraService.requestPairingInitialization()
+        refreshViewState()
+    }
+
+    func confirmPairingInitialization() {
+        cameraService.confirmPairingInitialization()
+        refreshViewState()
+    }
+
+    func cancelPairingInitialization() {
+        cameraService.cancelPairingInitialization()
+        refreshViewState()
+    }
+
     func stopGeotagging() {
         pendingStart = false
+        linkRequested = false
         transientError = nil
         cameraService.stopLink()
         locationService.stopUpdating()
@@ -388,7 +466,8 @@ final class CameraGPSLinkAppModel: ObservableObject {
         cameraService.configure(settings: newSettings)
         locationService.configure(settings: newSettings, isForeground: isForeground)
 
-        if newSettings.backgroundLinkEnabled,
+        if linkRequested,
+           newSettings.backgroundLinkEnabled,
            !previous.backgroundLinkEnabled,
            locationService.snapshot.permission.allowsForegroundLocation {
             locationService.startUpdating()
@@ -404,7 +483,7 @@ final class CameraGPSLinkAppModel: ObservableObject {
 
     func scheduleBackgroundRefresh() {
         #if os(iOS)
-        guard isProductionRuntime, settings.backgroundLinkEnabled else { return }
+        guard isProductionRuntime, settings.backgroundLinkEnabled, linkRequested else { return }
         let request = BGAppRefreshTaskRequest(identifier: backgroundRefreshIdentifier)
         request.earliestBeginDate = Date(
             timeIntervalSinceNow: settings.lowPowerModeEnabled ? 15 * 60 : 5 * 60
@@ -420,13 +499,19 @@ final class CameraGPSLinkAppModel: ObservableObject {
     private func beginForegroundLink() {
         guard !pendingStart || locationService.snapshot.permission.allowsForegroundLocation else { return }
         pendingStart = false
+        linkRequested = true
         transientError = nil
         locationService.startUpdating()
         cameraService.startForegroundLink()
+        scheduleBackgroundRefresh()
         refreshViewState()
     }
 
     private func serviceDidChange() {
+        let camera = cameraService.snapshot
+        if Self.shouldClearLinkRequest(cameraState: camera.state, activeLinkIntent: camera.activeLinkIntent) {
+            linkRequested = false
+        }
         let permission = locationService.snapshot.permission
         if pendingStart, permission.allowsForegroundLocation {
             beginForegroundLink()
@@ -443,6 +528,10 @@ final class CameraGPSLinkAppModel: ObservableObject {
         refreshViewState()
     }
 
+    func refreshTimeDerivedState() {
+        refreshViewState()
+    }
+
     private func refreshViewState() {
         viewState = GeotaggingViewState.make(
             from: Self.makeSnapshot(
@@ -451,10 +540,18 @@ final class CameraGPSLinkAppModel: ObservableObject {
                 settings: settings,
                 isForeground: isForeground,
                 pendingStart: pendingStart,
-                transientError: transientError
+                transientError: transientError,
+                now: now()
             ),
             now: now()
         )
+    }
+
+    static func shouldClearLinkRequest(
+        cameraState: CameraConnectionState,
+        activeLinkIntent: Bool
+    ) -> Bool {
+        !activeLinkIntent && [.stopped, .failed, .unsupported].contains(cameraState)
     }
 
     private static func makeSnapshot(
@@ -463,22 +560,37 @@ final class CameraGPSLinkAppModel: ObservableObject {
         settings: LinkSettings,
         isForeground: Bool,
         pendingStart: Bool,
-        transientError: String?
+        transientError: String?,
+        now: Date
     ) -> GeotaggingSnapshot {
-        GeotaggingSnapshot(
+        let currentLocation = location.currentLocation
+        let hasUsableLocation = currentLocation.map {
+            $0.horizontalAccuracy >= 0 && CameraBLEManager.isLocationFresh($0.timestamp, relativeTo: now)
+        } ?? false
+        return GeotaggingSnapshot(
             cameraState: camera.state,
             cameraName: camera.discoveredCameraName,
             targetName: camera.targetName,
             packetsSent: camera.packetsSent,
             lastSentAt: camera.lastSentAt,
             locationPermission: location.permission,
-            hasLocation: location.currentLocation != nil,
-            horizontalAccuracy: location.currentLocation?.horizontalAccuracy,
+            hasLocation: hasUsableLocation,
+            horizontalAccuracy: hasUsableLocation ? currentLocation?.horizontalAccuracy : nil,
             backgroundEnabled: settings.backgroundLinkEnabled,
             isForeground: isForeground,
             pendingReconnectArmed: camera.pendingReconnectArmed,
-            transientError: transientError ?? camera.lastError ?? location.lastError,
-            isRequestingPermission: pendingStart
+            transientError: transientError
+                ?? camera.lastError
+                ?? (camera.cleanupDiagnostic?.hasPrefix("Incomplete") == true ? camera.cleanupDiagnostic : nil)
+                ?? location.lastError,
+            isRequestingPermission: pendingStart,
+            experimentalApprovalPending: camera.experimentalApprovalPending,
+            profile: camera.profile,
+            confidence: camera.confidence,
+            firmware: camera.firmware,
+            protocolVersion: camera.protocolVersion,
+            packetSize: camera.packetSize,
+            cleanupDiagnostic: camera.cleanupDiagnostic
         )
     }
 
@@ -512,7 +624,7 @@ final class CameraGPSLinkAppModel: ObservableObject {
 
         isForeground = false
         locationService.configure(settings: settings, isForeground: false)
-        if locationService.snapshot.permission == .always {
+        if linkRequested, locationService.snapshot.permission == .always {
             locationService.startUpdating()
             cameraService.resumeBackgroundLink()
             cameraService.sendLocationIfDue()

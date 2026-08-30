@@ -6,6 +6,7 @@ from enum import StrEnum
 from typing import Any
 
 from sonygeotag.ble_probe import bytes_to_hex
+from sonygeotag.sony_capabilities import parse_dd21_mode
 
 SCHEMA_VERSION = 1
 
@@ -117,6 +118,7 @@ class CameraInfoSnapshot:
     device: CameraInfoDevice
     advertisement: dict[str, bool | int | None] | None
     characteristics: tuple[DecodedCharacteristic, ...]
+    location_compatibility: dict[str, Any] | None = None
 
     @property
     def summary(self) -> dict[str, Any]:
@@ -133,6 +135,7 @@ class CameraInfoSnapshot:
         rssi: int | None,
         advertisement: dict[str, bool | int | None] | None,
         characteristics: tuple[DecodedCharacteristic, ...],
+        location_compatibility: dict[str, Any] | None = None,
     ) -> CameraInfoSnapshot:
         return cls(
             captured_at=captured_at,
@@ -144,6 +147,7 @@ class CameraInfoSnapshot:
             ),
             advertisement=advertisement,
             characteristics=characteristics,
+            location_compatibility=location_compatibility,
         )
 
     def to_dict(self, *, include_raw: bool, show_sensitive: bool) -> dict[str, Any]:
@@ -156,6 +160,7 @@ class CameraInfoSnapshot:
             "device": self.device.to_dict(show_sensitive=show_sensitive),
             "advertisement": self.advertisement,
             "summary": self.summary,
+            "location_compatibility": self.location_compatibility,
             "counts": counts,
             "characteristics": [
                 characteristic.to_dict(include_raw=include_raw, show_sensitive=show_sensitive)
@@ -497,18 +502,19 @@ def _decode_wifi_band(value: bytes) -> ParseResult:
 
 
 def _decode_location_feature(value: bytes) -> ParseResult:
-    if len(value) < 5:
+    try:
+        mode = parse_dd21_mode(value)
+    except ValueError as error:
         return ParseResult(
             status=DecodeStatus.PARTIAL,
-            fields={},
-            warning="Location feature payload is shorter than 5 bytes.",
+            fields={"timezone_supported": None, "location_packet_size": None},
+            warning=str(error),
         )
-    timezone_supported = (value[4] & 0x02) == 0x02
     return ParseResult(
         status=DecodeStatus.DECODED,
         fields={
-            "timezone_supported": timezone_supported,
-            "location_packet_size": 95 if timezone_supported else 91,
+            "timezone_supported": mode.include_timezone,
+            "location_packet_size": mode.packet_size,
             "feature_flags": value[4],
         },
     )
@@ -567,9 +573,7 @@ def _decode_framing_only(value: bytes) -> ParseResult:
 CHARACTERISTIC_SPECS: dict[str, CharacteristicSpec] = {
     _uuid("cc03"): _spec("Push transfer", "camera_status", Confidence.REFERENCED, decoder=_decode_push_transfer),
     _uuid("cc06"): _spec("Wi-Fi SSID", "network", Confidence.REFERENCED, Sensitivity.NETWORK, _decode_ssid),
-    _uuid("cc07"): _spec(
-        "Wi-Fi password", "network", Confidence.REFERENCED, Sensitivity.SECRET, _decode_wifi_password
-    ),
+    _uuid("cc07"): _spec("Wi-Fi password", "network", Confidence.REFERENCED, Sensitivity.SECRET, _decode_wifi_password),
     _uuid("cc09"): _spec("Camera status", "camera_status", Confidence.REFERENCED, decoder=_decode_camera_status),
     _uuid("cc0a"): _spec("Firmware version", "identity", Confidence.VERIFIED, decoder=_decode_firmware),
     _uuid("cc0b"): _spec("Camera model", "identity", Confidence.VERIFIED, decoder=_decode_model),
@@ -588,13 +592,9 @@ CHARACTERISTIC_SPECS: dict[str, CharacteristicSpec] = {
     _uuid("cca2"): _spec("Opaque network identifier", "network", Confidence.UNKNOWN, Sensitivity.IDENTIFIER),
     _uuid("cca7"): _spec("Opaque network token", "network", Confidence.UNKNOWN, Sensitivity.IDENTIFIER),
     _uuid("ccab"): _spec("Wi-Fi band", "network", Confidence.REFERENCED, decoder=_decode_wifi_band),
-    _uuid("dd21"): _spec(
-        "Location capabilities", "location", Confidence.VERIFIED, decoder=_decode_location_feature
-    ),
+    _uuid("dd21"): _spec("Location capabilities", "location", Confidence.VERIFIED, decoder=_decode_location_feature),
     _uuid("dd30"): _spec("Location lock", "location", Confidence.VERIFIED, decoder=_decode_location_lock),
-    _uuid("dd31"): _spec(
-        "Location transfer", "location", Confidence.VERIFIED, decoder=_decode_location_enabled
-    ),
+    _uuid("dd31"): _spec("Location transfer", "location", Confidence.VERIFIED, decoder=_decode_location_enabled),
     _uuid("dd32"): _spec("Time correction", "location", Confidence.VERIFIED, decoder=_decode_time_correction),
     _uuid("dd33"): _spec("Area adjustment", "location", Confidence.VERIFIED, decoder=_decode_area_adjustment),
     _uuid("ee02"): _spec(

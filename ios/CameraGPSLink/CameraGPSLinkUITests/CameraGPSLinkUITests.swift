@@ -96,6 +96,22 @@ final class CameraGPSLinkUITests: XCTestCase {
         waitForDisappearance(app.staticTexts["Background Permission Needed"])
     }
 
+    func testExperimentalApprovalAndUnsupportedStatesAreExplicit() {
+        launch("experimental-approval")
+        XCTAssertTrue(app.staticTexts["Experimental Camera Profile"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'ILCE-7M4'")).firstMatch.exists)
+        XCTAssertTrue(app.buttons["Continue with Experimental Profile"].exists)
+        XCTAssertTrue(app.buttons["Cancel"].exists)
+        app.buttons["Continue with Experimental Profile"].tap()
+        XCTAssertTrue(app.staticTexts["Preparing Location…"].waitForExistence(timeout: 2))
+
+        app.terminate()
+        launch("unsupported")
+        XCTAssertTrue(app.staticTexts["Unsupported Camera Profile"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["DD11 lacks write-with-response."].exists)
+        XCTAssertTrue(app.buttons["Cancel"].exists)
+    }
+
     func testPermissionDeniedShowsActionableRecovery() {
         launch("permission-denied")
 
@@ -146,9 +162,12 @@ final class CameraGPSLinkUITests: XCTestCase {
         app.buttons["diagnostics-link"].tap()
 
         XCTAssertTrue(app.navigationBars["Diagnostics"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.staticTexts["DD11 timezone"].exists)
-        XCTAssertTrue(app.staticTexts["Mode"].exists)
+        XCTAssertTrue(app.staticTexts["DD11 packet"].exists)
+        XCTAssertTrue(app.staticTexts["Profile"].exists)
+        XCTAssertTrue(app.staticTexts["Confidence"].exists)
+        XCTAssertFalse(app.staticTexts["Remembered peripheral"].exists)
         scrollUntilVisible(app.buttons["copy-diagnostics"])
+        XCTAssertTrue(app.staticTexts["Mode"].exists)
         XCTAssertTrue(app.staticTexts["Diagnostic logs may include recent coordinates. Review them before sharing."].exists)
         XCTAssertTrue(app.buttons["copy-diagnostics"].exists)
         app.buttons["copy-diagnostics"].tap()
@@ -156,6 +175,17 @@ final class CameraGPSLinkUITests: XCTestCase {
 
         app.navigationBars.buttons.element(boundBy: 0).tap()
         XCTAssertTrue(app.staticTexts["Ready to Geotag"].waitForExistence(timeout: 2))
+    }
+
+    func testPairingInitializationIsSeparateAndConfirmed() {
+        launch("not-connected")
+        app.buttons["diagnostics-link"].tap()
+        scrollUntilVisible(app.buttons["request-pairing-init"])
+        XCTAssertTrue(app.buttons["request-pairing-init"].isHittable)
+        app.buttons["request-pairing-init"].tap()
+        XCTAssertTrue(app.buttons["Send Pairing Initialization"].waitForExistence(timeout: 2))
+        app.buttons["Send Pairing Initialization"].tap()
+        XCTAssertFalse(app.buttons["Send Pairing Initialization"].exists)
     }
 
     func testDiagnosticsEmptyStateAndBoundedDenseLogRemainNavigable() {

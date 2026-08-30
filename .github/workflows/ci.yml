@@ -26,5 +26,7 @@ jobs:
         run: uv run ruff check .
       - name: Type check
         run: uv run ty check .
+      - name: Source line limit
+        run: uv run python scripts/check_source_lines.py
       - name: Test
         run: uv run pytest -v -s --cov=src --cov-report=xml tests

@@ -11,6 +11,9 @@ enum SonyProtocol {
     static let locationServiceUUID = "8000dd00-dd00-ffff-ffff-ffffffffffff"
     static let pairingServiceUUID = "8000ee00-ee00-ffff-ffff-ffffffffffff"
 
+    static let firmwareVersionUUID = "0000cc0a-0000-1000-8000-00805f9b34fb"
+    static let cameraModelUUID = "0000cc0b-0000-1000-8000-00805f9b34fb"
+
     static let locationStatusNotifyUUID = "0000dd01-0000-1000-8000-00805f9b34fb"
     static let locationDataWriteUUID = "0000dd11-0000-1000-8000-00805f9b34fb"
     static let locationConfigReadUUID = "0000dd21-0000-1000-8000-00805f9b34fb"
