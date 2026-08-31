@@ -5,7 +5,7 @@
 xcuserdata/
 *.xcuserstate
 DerivedData/
-ios/CameraGPSLink/build/
+/build/
 
 # Editors and agents
 .vscode/
