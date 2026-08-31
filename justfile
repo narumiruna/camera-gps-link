@@ -16,7 +16,11 @@ list:
     just --list
 
 # Run the full local iOS verification gate
-check: source-line-check ios-check
+check: source-line-check-test source-line-check ios-check
+
+# Verify the Swift source line checker fails closed
+source-line-check-test:
+    bash scripts/test_check_source_lines.sh
 
 # Reject Swift program sources over 1000 lines
 source-line-check:
