@@ -11,6 +11,8 @@ Target camera:
 
 ## Probe commands
 
+These commands are provided by the external [SonyGeoTag repository](https://github.com/narumiruna/sony-geotag).
+
 ```bash
 uv run sonygeotag scan --target ILCE-7CM2 --timeout 15
 uv run sonygeotag gatt-dump --target ILCE-7CM2 --timeout 10

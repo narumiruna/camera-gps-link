@@ -33,8 +33,9 @@ Background behavior is never inferred from foreground success. Models not listed
 
 ## Current validation scope
 
-1. Re-run only A7C II Python and iOS foreground EXIF checks after capability refactoring.
-2. Validate generic modern/legacy resolution, execution safety, compensation, and experimental approval through automated Python and Swift fixtures.
+1. Maintain the A7C II Python foreground EXIF regression in the external [SonyGeoTag repository](https://github.com/narumiruna/sony-geotag) and run the iOS foreground EXIF check here.
+2. Validate generic modern/legacy resolution, execution safety, compensation, and experimental approval through automated Python fixtures in SonyGeoTag and Swift fixtures in this repository.
 3. Do not collect snapshots, perform writes, or request EXIF evidence from non-A7C II physical cameras under the current plan; keep every such row unverified.
 
-Read-only snapshot and experimental-write tooling remains available for future separately scoped qualification. Any real write still requires separate explicit authorization and approved coordinates.
+Read-only snapshot and experimental-write tooling remains available from SonyGeoTag for future separately scoped qualification.
+Any real write still requires separate explicit authorization and approved coordinates.

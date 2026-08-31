@@ -15,39 +15,12 @@ all: check
 list:
     just --list
 
-# Run the full local verification gate
-check: source-line-check py-check ios-check
+# Run the full local iOS verification gate
+check: source-line-check ios-check
 
-# Reject Python and Swift program sources over 1000 lines
+# Reject Swift program sources over 1000 lines
 source-line-check:
-    uv run python scripts/check_source_lines.py
-
-# Format Python code using ruff
-format:
-    uv run ruff format src tests
-
-# Lint Python code using ruff and apply safe fixes
-lint:
-    uv run ruff check --fix src tests
-
-# Lint Python code without modifying files
-lint-check:
-    uv run ruff check src tests
-
-# Type check Python code using ty
-type:
-    uv run ty check src tests
-
-# Run Python tests
-test:
-    uv run pytest tests
-
-# Run Python tests with coverage and verbose output
-coverage:
-    uv run pytest -v -s --cov=src tests
-
-# Run Python lint, type check, and tests
-py-check: lint-check type test
+    bash scripts/check_source_lines.sh
 
 # Open the iOS app project in Xcode
 ios-open:
@@ -80,7 +53,8 @@ ios-test-prepare:
     #!/usr/bin/env bash
     set -euo pipefail
     if ! DEVELOPER_DIR={{xcode_dev_dir}} xcrun simctl list devices available | grep -Fq '{{ios_test_device_name}} ('; then
-        runtime=$(DEVELOPER_DIR={{xcode_dev_dir}} xcrun simctl list runtimes available -j | python3 -c 'import json,sys; runtimes=[r for r in json.load(sys.stdin)["runtimes"] if r["platform"] == "iOS" and r.get("isAvailable", True)]; print(runtimes[-1]["identifier"])')
+        runtime=$(DEVELOPER_DIR={{xcode_dev_dir}} xcrun simctl list runtimes available | awk '/^iOS / { runtime=$NF } END { print runtime }')
+        test -n "$runtime"
         DEVELOPER_DIR={{xcode_dev_dir}} xcrun simctl create '{{ios_test_device_name}}' com.apple.CoreSimulator.SimDeviceType.iPhone-17 "$runtime" >/dev/null
     fi
 
@@ -113,47 +87,6 @@ ios-destinations:
 ios-console device="00008140-0001588C017B001C":
     DEVELOPER_DIR={{xcode_dev_dir}} xcrun devicectl device process launch --device {{device}} --console dev.narumi.cameragpslink
 
-# Scan for the camera over BLE
-ble-scan target="ILCE-7CM2":
-    uv run sonygeotag scan --target {{target}} --timeout 15
-
-# Dump Sony camera GATT services/characteristics
-ble-gatt target="ILCE-7CM2":
-    uv run sonygeotag gatt-dump --target {{target}} --timeout 10
-
-# Decode a strict read-only camera information snapshot
-ble-info target="ILCE-7CM2":
-    uv run sonygeotag camera-info --target {{target}} --timeout 15 --pair
-
-# Capture a sanitized, strict read-only location compatibility snapshot
-compatibility-snapshot target="ILCE-7CM2":
-    uv run sonygeotag compatibility-snapshot --target {{target}} --timeout 15 --pair
-
-# Verify matching GPS EXIF in a JPEG or HEIF image captured during the DD11 session
-exif-verify photo lat lon not_before:
-    uv run sonygeotag verify-exif --photo {{photo}} --lat {{lat}} --lon {{lon}} --not-before {{not_before}}
-
-# Open the live read-only camera status TUI
-ble-monitor target="ILCE-7CM2" interval="2":
-    uv run sonygeotag monitor --target {{target}} --interval {{interval}} --pair
-
-# Subscribe to notifications from the camera
-ble-notify target="ILCE-7CM2" duration="60":
-    uv run sonygeotag notify-log --target {{target}} --duration {{duration}}
-
-# Dry-run encode/send a DD11 GPS packet without writing to BLE
-location-dry-run lat lon:
-    uv run sonygeotag send-location --lat {{lat}} --lon {{lon}}
-
-# Write GPS to an already initialized camera; requires explicit authorization and lat/lon
-location-write lat lon target="ILCE-7CM2" duration="60" interval="30":
-    uv run sonygeotag send-location --target {{target}} --lat {{lat}} --lon {{lon}} --write --duration {{duration}} --interval {{interval}} --pair
-
 # Remove local build/test artifacts
 clean:
-    rm -rf ios/CameraGPSLink/build .pytest_cache .ruff_cache .coverage htmlcov {{ios_smoke}}
-
-# Build and publish the package to PyPI
-publish:
-    uv build --no-sources
-    uv publish
+    rm -rf ios/CameraGPSLink/build {{ios_smoke}}

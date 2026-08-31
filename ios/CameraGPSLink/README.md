@@ -121,7 +121,7 @@ A physical iPhone is still required to validate real CoreBluetooth behavior, bac
 
 ## Known limitations
 
-- The exact A7C II baseline is historical evidence only; runtime confidence remains experimental until separately authorized post-refactor Python and iOS EXIF regressions pass.
+- The exact A7C II baseline is historical evidence only; runtime confidence remains experimental until the external Python evidence is current and a separately authorized post-refactor iOS EXIF regression passes.
 - A7 III, A7 IV, A6700, A7R V, A7S III, A1, ZV-E1, and ZV-E10 II remain unverified until their exact rows have independent evidence.
 - Background execution is opportunistic and cannot guarantee a fresh location immediately before every shutter release.
 - The app updates the camera’s cached location for new photos; it does not modify existing images.
