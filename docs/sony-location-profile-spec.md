@@ -1,6 +1,7 @@
 # Sony BLE location profile specification
 
-This document is the fail-closed contract shared by the Python and iOS implementations. Model names describe compatibility evidence; they never select protocol operations.
+This document is the fail-closed contract shared by the iOS implementation in this repository and the Python implementation in the external [SonyGeoTag repository](https://github.com/narumiruna/sony-geotag).
+Model names describe compatibility evidence; they never select protocol operations.
 
 ## Descriptor requirements
 

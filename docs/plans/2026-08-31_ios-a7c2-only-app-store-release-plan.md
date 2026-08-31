@@ -15,8 +15,8 @@ The App Store product name will remain **Camera GPS Link** so the app does not a
 The App Store subtitle and description may use the camera name only to describe compatibility accurately.
 The product page and in-app About information will state that the app is independent and is not affiliated with or endorsed by Sony.
 
-This decision does not remove capability-driven protocol code, automated fixtures, read-only research tools, or Python CLI support from the repository.
-Those components may continue to model other cameras for development and future research, but they do not define the public iOS support claim.
+This decision does not remove capability-driven Swift protocol code or automated iOS fixtures from this repository.
+The Python CLI and its read-only research tools are maintained separately in the [SonyGeoTag repository](https://github.com/narumiruna/sony-geotag) and do not define the public iOS support claim.
 
 ## Rationale
 
@@ -93,7 +93,7 @@ The description must explain that background updates are opportunistic and canno
 - Confirm model, firmware, protocol `101`, modern profile, strict `DD21`, and 95-byte packet resolution.
 - Start foreground geotagging and wait for **Ready to Geotag** after the first successful `DD11` write.
 - Capture a new JPEG or HEIF image while the session is active.
-- Verify the photo timestamp and GPS EXIF with `sonygeotag verify-exif` without committing the photo.
+- Verify the photo timestamp and GPS EXIF with the external [`sonygeotag verify-exif`](https://github.com/narumiruna/sony-geotag) tool without committing the photo.
 - Stop geotagging and verify DD31/DD30 cleanup leaves the camera usable.
 - Record sanitized evidence in `docs/compatibility/ilce-7cm2-2.01.md`.
 - Promote the exact iOS identity to verified only after all preceding checks pass.
