@@ -29,7 +29,8 @@ extension CameraBLEManager: CBCentralManagerDelegate {
                 activeSessionRequested = false
                 manualStopRequested = true
                 setUserLinkIntent(active: false)
-                cleanupDiagnostic = "Incomplete cleanup: Bluetooth became unavailable while camera controls might be active"
+                cleanupDiagnostic =
+                    "Incomplete cleanup: Bluetooth became unavailable while camera controls might be active"
                 lastError = cleanupDiagnostic
                 state = .failed
             } else {
@@ -45,20 +46,21 @@ extension CameraBLEManager: CBCentralManagerDelegate {
         _ central: CBCentralManager,
         didDiscover peripheral: CBPeripheral,
         advertisementData: [String: Any],
-        rssi RSSI: NSNumber
+        rssi: NSNumber
     ) {
         guard !manualStopRequested else { return }
         let localName = advertisementData[CBAdvertisementDataLocalNameKey] as? String
         let name = peripheral.name ?? localName ?? ""
         let manufacturerData = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data
         let info = SonyProtocol.parseAdvertisement(manufacturerData: manufacturerData)
-        let matchesName = name.localizedCaseInsensitiveContains(targetName) || name.localizedCaseInsensitiveContains("ILCE-")
+        let matchesName =
+            name.localizedCaseInsensitiveContains(targetName) || name.localizedCaseInsensitiveContains("ILCE-")
         let matchesSonyCamera = info?.isCamera == true
 
         guard matchesName || matchesSonyCamera else { return }
 
         discoveredCameraName = name.isEmpty ? "Sony camera" : name
-        appendLog("Found \(discoveredCameraName ?? "Sony camera") RSSI=\(RSSI)")
+        appendLog("Found \(discoveredCameraName ?? "Sony camera") RSSI=\(rssi)")
         advertisementProtocolVersion = info?.protocolVersion
         if let info {
             appendLog("Sony protocolVersion=\(info.protocolVersion.map(String.init) ?? "unknown")")
@@ -173,7 +175,8 @@ extension CameraBLEManager: CBCentralManagerDelegate {
     func centralManager(_ central: CBCentralManager, willRestoreState dict: [String: Any]) {
         appendLog("CoreBluetooth restored state")
         if let peripherals = dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral],
-           let restoredPeripheral = peripherals.first {
+            let restoredPeripheral = peripherals.first
+        {
             appendLog("Restored remembered camera state=\(restoredPeripheral.state.rawValue)")
             guard backgroundLinkEnabled, userLinkIntentActive else {
                 remember(peripheral: restoredPeripheral)
@@ -252,7 +255,9 @@ extension CameraBLEManager: CBPeripheralDelegate {
             return
         }
         for characteristic in service.characteristics ?? [] {
-            characteristics[endpointKey(service: service.uuid.uuidString, characteristic: characteristic.uuid.uuidString)] = characteristic
+            characteristics[
+                endpointKey(service: service.uuid.uuidString, characteristic: characteristic.uuid.uuidString)] =
+                characteristic
             descriptors.append(
                 SonyGattDescriptor(
                     serviceUUID: service.uuid.uuidString,
@@ -272,8 +277,8 @@ extension CameraBLEManager: CBPeripheralDelegate {
         guard isExpectedEndpoint(characteristic, from: peripheral) else { return }
         if consumeTimedOutCallback(kind: "write", uuid: characteristic.uuid.uuidString) { return }
         guard
-              case let .write(name, uuid, required) = pendingOperation,
-              uuid == normalized(characteristic.uuid)
+            case .write(let name, let uuid, let required) = pendingOperation,
+            uuid == normalized(characteristic.uuid)
         else {
             return
         }
@@ -284,7 +289,7 @@ extension CameraBLEManager: CBPeripheralDelegate {
         guard isExpectedEndpoint(characteristic, from: peripheral) else { return }
         let characteristicUUID = normalized(characteristic.uuid)
         if consumeTimedOutCallback(kind: "read", uuid: characteristicUUID) { return }
-        if case let .read(name, uuid, required, onValue) = pendingOperation, uuid == characteristicUUID {
+        if case .read(let name, let uuid, let required, let onValue) = pendingOperation, uuid == characteristicUUID {
             if let error {
                 completeOperation(name: name, error: error.localizedDescription, required: required)
                 return
@@ -305,11 +310,13 @@ extension CameraBLEManager: CBPeripheralDelegate {
         }
     }
 
-    func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
+    func peripheral(
+        _ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?
+    ) {
         guard isExpectedEndpoint(characteristic, from: peripheral) else { return }
         let characteristicUUID = normalized(characteristic.uuid)
         if consumeTimedOutCallback(kind: "notify", uuid: characteristicUUID) { return }
-        if case let .notify(name, uuid, required, enabled) = pendingOperation, uuid == characteristicUUID {
+        if case .notify(let name, let uuid, let required, let enabled) = pendingOperation, uuid == characteristicUUID {
             if let error {
                 completeOperation(name: name, error: error.localizedDescription, required: required)
                 return
@@ -343,25 +350,25 @@ enum PendingBLEOperation {
 
     var name: String {
         switch self {
-        case let .write(name, _, _), let .read(name, _, _, _), let .notify(name, _, _, _):
+        case .write(let name, _, _), .read(let name, _, _, _), .notify(let name, _, _, _):
             name
         }
     }
 
     var required: Bool {
         switch self {
-        case let .write(_, _, required), let .read(_, _, required, _), let .notify(_, _, required, _):
+        case .write(_, _, let required), .read(_, _, let required, _), .notify(_, _, let required, _):
             required
         }
     }
 
     var callbackDebtKey: String {
         switch self {
-        case let .write(_, uuid, _):
+        case .write(_, let uuid, _):
             "write|\(uuid)"
-        case let .read(_, uuid, _, _):
+        case .read(_, let uuid, _, _):
             "read|\(uuid)"
-        case let .notify(_, uuid, _, _):
+        case .notify(_, let uuid, _, _):
             "notify|\(uuid)"
         }
     }
@@ -454,10 +461,10 @@ extension CameraBLEManager {
 
     func isExpectedEndpoint(_ characteristic: CBCharacteristic, from callbackPeripheral: CBPeripheral) -> Bool {
         guard let activePeripheral = peripheral,
-              activePeripheral === callbackPeripheral,
-              let service = characteristic.service,
-              let expectedService = expectedServiceUUID(for: characteristic.uuid.uuidString),
-              let expectedCharacteristic = self.characteristic(characteristic.uuid.uuidString)
+            activePeripheral === callbackPeripheral,
+            let service = characteristic.service,
+            let expectedService = expectedServiceUUID(for: characteristic.uuid.uuidString),
+            let expectedCharacteristic = self.characteristic(characteristic.uuid.uuidString)
         else { return false }
         return normalized(service.uuid) == normalized(expectedService)
             && expectedCharacteristic === characteristic

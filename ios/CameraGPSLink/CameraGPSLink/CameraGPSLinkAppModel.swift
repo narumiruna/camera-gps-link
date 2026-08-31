@@ -2,8 +2,9 @@ import BackgroundTasks
 import Combine
 import CoreLocation
 import Foundation
+
 #if canImport(UIKit)
-import UIKit
+    import UIKit
 #endif
 
 struct CameraServiceSnapshot: Equatable {
@@ -218,9 +219,9 @@ final class CoreLocationServiceAdapter: LocationServicing {
 final class CameraGPSLinkAppModel: ObservableObject {
     static func makeForCurrentProcess() -> CameraGPSLinkAppModel {
         #if DEBUG
-        if let fixture = UITestAppModelFactory.makeFromEnvironment() {
-            return fixture
-        }
+            if let fixture = UITestAppModelFactory.makeFromEnvironment() {
+                return fixture
+            }
         #endif
         return CameraGPSLinkAppModel()
     }
@@ -263,8 +264,8 @@ final class CameraGPSLinkAppModel: ObservableObject {
             now: Date.init,
             openSettings: {
                 #if canImport(UIKit)
-                guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
-                UIApplication.shared.open(url)
+                    guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                    UIApplication.shared.open(url)
                 #endif
             }
         )
@@ -467,9 +468,10 @@ final class CameraGPSLinkAppModel: ObservableObject {
         locationService.configure(settings: newSettings, isForeground: isForeground)
 
         if linkRequested,
-           newSettings.backgroundLinkEnabled,
-           !previous.backgroundLinkEnabled,
-           locationService.snapshot.permission.allowsForegroundLocation {
+            newSettings.backgroundLinkEnabled,
+            !previous.backgroundLinkEnabled,
+            locationService.snapshot.permission.allowsForegroundLocation
+        {
             locationService.startUpdating()
             cameraService.resumeBackgroundLink()
         }
@@ -483,16 +485,16 @@ final class CameraGPSLinkAppModel: ObservableObject {
 
     func scheduleBackgroundRefresh() {
         #if os(iOS)
-        guard isProductionRuntime, settings.backgroundLinkEnabled, linkRequested else { return }
-        let request = BGAppRefreshTaskRequest(identifier: backgroundRefreshIdentifier)
-        request.earliestBeginDate = Date(
-            timeIntervalSinceNow: settings.lowPowerModeEnabled ? 15 * 60 : 5 * 60
-        )
-        do {
-            try BGTaskScheduler.shared.submit(request)
-        } catch {
-            print("Failed to schedule background refresh: \(error.localizedDescription)")
-        }
+            guard isProductionRuntime, settings.backgroundLinkEnabled, linkRequested else { return }
+            let request = BGAppRefreshTaskRequest(identifier: backgroundRefreshIdentifier)
+            request.earliestBeginDate = Date(
+                timeIntervalSinceNow: settings.lowPowerModeEnabled ? 15 * 60 : 5 * 60
+            )
+            do {
+                try BGTaskScheduler.shared.submit(request)
+            } catch {
+                print("Failed to schedule background refresh: \(error.localizedDescription)")
+            }
         #endif
     }
 
@@ -521,7 +523,8 @@ final class CameraGPSLinkAppModel: ObservableObject {
             pendingStart = false
             transientError = "Location access is off. Review permission in iOS Settings, then retry."
         } else if permission.allowsForegroundLocation,
-                  transientError?.contains("Location access is off") == true {
+            transientError?.contains("Location access is off") == true
+        {
             transientError = nil
         }
         cameraService.sendLocationIfDue()
@@ -564,9 +567,10 @@ final class CameraGPSLinkAppModel: ObservableObject {
         now: Date
     ) -> GeotaggingSnapshot {
         let currentLocation = location.currentLocation
-        let hasUsableLocation = currentLocation.map {
-            $0.horizontalAccuracy >= 0 && CameraBLEManager.isLocationFresh($0.timestamp, relativeTo: now)
-        } ?? false
+        let hasUsableLocation =
+            currentLocation.map {
+                $0.horizontalAccuracy >= 0 && CameraBLEManager.isLocationFresh($0.timestamp, relativeTo: now)
+            } ?? false
         return GeotaggingSnapshot(
             cameraState: camera.state,
             cameraName: camera.discoveredCameraName,
@@ -582,7 +586,7 @@ final class CameraGPSLinkAppModel: ObservableObject {
             transientError: transientError
                 ?? camera.lastError
                 ?? (camera.cleanupDiagnostic?.hasPrefix("Incomplete") == true ? camera.cleanupDiagnostic : nil)
-                ?? location.lastError,
+                    ?? location.lastError,
             isRequestingPermission: pendingStart,
             experimentalApprovalPending: camera.experimentalApprovalPending,
             profile: camera.profile,
@@ -596,45 +600,45 @@ final class CameraGPSLinkAppModel: ObservableObject {
 
     private func registerBackgroundTasks() {
         #if os(iOS)
-        guard !didRegisterBackgroundTasks else { return }
-        didRegisterBackgroundTasks = BGTaskScheduler.shared.register(
-            forTaskWithIdentifier: backgroundRefreshIdentifier,
-            using: nil
-        ) { [weak self] task in
-            guard let refreshTask = task as? BGAppRefreshTask else {
-                task.setTaskCompleted(success: false)
-                return
+            guard !didRegisterBackgroundTasks else { return }
+            didRegisterBackgroundTasks = BGTaskScheduler.shared.register(
+                forTaskWithIdentifier: backgroundRefreshIdentifier,
+                using: nil
+            ) { [weak self] task in
+                guard let refreshTask = task as? BGAppRefreshTask else {
+                    task.setTaskCompleted(success: false)
+                    return
+                }
+                Task { @MainActor in
+                    self?.handleBackgroundRefresh(refreshTask)
+                }
             }
-            Task { @MainActor in
-                self?.handleBackgroundRefresh(refreshTask)
-            }
-        }
         #endif
     }
 
     #if os(iOS)
-    private func handleBackgroundRefresh(_ task: BGAppRefreshTask) {
-        scheduleBackgroundRefresh()
-        task.expirationHandler = { [weak self] in
-            DispatchQueue.main.async {
-                self?.backgroundTaskCompletion?.cancel()
-                task.setTaskCompleted(success: false)
+        private func handleBackgroundRefresh(_ task: BGAppRefreshTask) {
+            scheduleBackgroundRefresh()
+            task.expirationHandler = { [weak self] in
+                DispatchQueue.main.async {
+                    self?.backgroundTaskCompletion?.cancel()
+                    task.setTaskCompleted(success: false)
+                }
             }
-        }
 
-        isForeground = false
-        locationService.configure(settings: settings, isForeground: false)
-        if linkRequested, locationService.snapshot.permission == .always {
-            locationService.startUpdating()
-            cameraService.resumeBackgroundLink()
-            cameraService.sendLocationIfDue()
-        }
+            isForeground = false
+            locationService.configure(settings: settings, isForeground: false)
+            if linkRequested, locationService.snapshot.permission == .always {
+                locationService.startUpdating()
+                cameraService.resumeBackgroundLink()
+                cameraService.sendLocationIfDue()
+            }
 
-        let completion = DispatchWorkItem {
-            task.setTaskCompleted(success: true)
+            let completion = DispatchWorkItem {
+                task.setTaskCompleted(success: true)
+            }
+            backgroundTaskCompletion = completion
+            DispatchQueue.main.asyncAfter(deadline: .now() + 20, execute: completion)
         }
-        backgroundTaskCompletion = completion
-        DispatchQueue.main.asyncAfter(deadline: .now() + 20, execute: completion)
-    }
     #endif
 }

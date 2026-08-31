@@ -55,18 +55,20 @@ struct LinkSettings: Equatable {
     }
 
     var effectPreview: String {
-        let delivery = switch connectionAvailability {
-        case .whileAppIsOpen:
-            "Runs only while Camera GPS Link is open."
-        case .continueInBackground:
-            "Keeps reconnecting when possible and requires Always Location permission. iOS may pause it after force-quit."
-        }
-        let updates = switch locationUpdates {
-        case .batterySaver:
-            "Uses approximate 100 m location and sends about every 2 minutes."
-        case .bestAccuracy:
-            "Uses the best available GPS accuracy and sends about every 30 seconds, using more battery."
-        }
+        let delivery =
+            switch connectionAvailability {
+            case .whileAppIsOpen:
+                "Runs only while Camera GPS Link is open."
+            case .continueInBackground:
+                "Keeps reconnecting when possible and requires Always Location permission. iOS may pause it after force-quit."
+            }
+        let updates =
+            switch locationUpdates {
+            case .batterySaver:
+                "Uses approximate 100 m location and sends about every 2 minutes."
+            case .bestAccuracy:
+                "Uses the best available GPS accuracy and sends about every 30 seconds, using more battery."
+            }
         return "\(delivery) \(updates)"
     }
 }

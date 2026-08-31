@@ -4,6 +4,7 @@ import asyncio
 import json
 from pathlib import Path
 from typing import Annotated
+from typing import cast
 
 import typer
 from bleak.exc import BleakError
@@ -618,11 +619,14 @@ def _print_location_compatibility(compatibility: dict[str, object] | None) -> No
     dd21_mode = compatibility["dd21_mode"]
     if not isinstance(identity, dict) or not isinstance(profile, dict):
         return
-    packet_size = dd21_mode.get("packet_size", "unknown") if isinstance(dd21_mode, dict) else "unknown"
+    identity_data = cast(dict[str, object], identity)
+    profile_data = cast(dict[str, object], profile)
+    dd21_data = cast(dict[str, object], dd21_mode) if isinstance(dd21_mode, dict) else {}
+    packet_size = dd21_data.get("packet_size", "unknown")
     typer.echo(
         "Location compatibility: "
-        f"model={identity.get('model')} firmware={identity.get('firmware') or 'unknown'} "
-        f"profile={profile.get('kind')} confidence={compatibility.get('confidence')} "
+        f"model={identity_data.get('model')} firmware={identity_data.get('firmware') or 'unknown'} "
+        f"profile={profile_data.get('kind')} confidence={compatibility.get('confidence')} "
         f"approval_required={compatibility.get('approval_required')} packet_size={packet_size}"
     )
     if compatibility.get("dd21_error") is not None:

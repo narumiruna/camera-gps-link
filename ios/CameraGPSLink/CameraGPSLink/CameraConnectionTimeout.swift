@@ -72,8 +72,8 @@ final class ForegroundConnectionTimeoutSession {
         scheduledTimeoutID = timeoutID
         token = scheduler.schedule(policy.timeout(for: stage)) { [weak self] in
             guard let self,
-                  self.attemptID == attemptID,
-                  self.scheduledTimeoutID == timeoutID
+                self.attemptID == attemptID,
+                self.scheduledTimeoutID == timeoutID
             else { return }
             self.token = nil
             self.attemptID = nil

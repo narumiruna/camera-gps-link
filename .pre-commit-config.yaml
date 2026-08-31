@@ -29,9 +29,10 @@ repos:
     hooks:
       - id: swiftlint
         name: SwiftLint
-        entry: swiftlint --fix --strict
+        entry: env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swiftlint --fix
         language: system
         types: [swift]
+        require_serial: true
       - id: swift-format
         name: swift-format
         entry: swift-format format --in-place --recursive --parallel

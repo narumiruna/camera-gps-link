@@ -1,6 +1,7 @@
 import Combine
 import CoreLocation
 import XCTest
+
 @testable import CameraGPSLink
 
 final class ForegroundConnectionTimeoutPolicyTests: XCTestCase {
@@ -314,7 +315,7 @@ final class SonyLocationProfileTests: XCTestCase {
                     profile: .modern,
                     confidence: .unsupported,
                     evidence: "blocked-fixture"
-                ),
+                )
             ]
         )
         let blocked = SonyLocationCapabilityResolver.resolve(
@@ -869,7 +870,8 @@ private final class FakeLocationService: LocationServicing {
     var stops = 0
 
     init(permission: LocationPermission) {
-        snapshot = LocationServiceSnapshot(permission: permission, currentLocation: nil, isUpdating: false, lastError: nil)
+        snapshot = LocationServiceSnapshot(
+            permission: permission, currentLocation: nil, isUpdating: false, lastError: nil)
     }
 
     func configure(settings: LinkSettings, isForeground: Bool) {
@@ -909,8 +911,8 @@ private enum TestFailure: Error {
     case expected
 }
 
-private extension CameraServiceSnapshot {
-    static func fixture() -> CameraServiceSnapshot {
+extension CameraServiceSnapshot {
+    fileprivate static func fixture() -> CameraServiceSnapshot {
         CameraServiceSnapshot(
             state: .idle,
             discoveredCameraName: nil,
@@ -937,8 +939,8 @@ private extension CameraServiceSnapshot {
     }
 }
 
-private extension GeotaggingSnapshot {
-    static func fixture(
+extension GeotaggingSnapshot {
+    fileprivate static func fixture(
         cameraState: CameraConnectionState,
         packetsSent: Int = 0,
         lastSentAt: Date? = nil,

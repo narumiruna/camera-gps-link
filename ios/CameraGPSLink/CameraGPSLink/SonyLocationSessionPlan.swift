@@ -30,7 +30,7 @@ struct SonyLocationSessionPlan: Equatable {
                         uuid: SonyProtocol.locationConfigReadUUID,
                         kind: .read,
                         required: true
-                    ),
+                    )
                 ]
             )
         }

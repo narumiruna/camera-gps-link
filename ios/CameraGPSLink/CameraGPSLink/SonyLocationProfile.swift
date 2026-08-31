@@ -58,7 +58,8 @@ struct SonyCameraIdentity: Codable, Equatable {
     let protocolVersion: Int?
 
     var normalizedModel: String {
-        let normalized = model
+        let normalized =
+            model
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .uppercased()
             .replacingOccurrences(of: "_", with: "-")
@@ -99,11 +100,11 @@ enum SonyDD21Error: Error, LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case let .wrongLength(length):
+        case .wrongLength(let length):
             "DD21 must be exactly 6 or 7 bytes; received \(length)."
         case .wrongPrefix:
             "DD21 has an unsupported framing prefix."
-        case let .unknownFlags(flags):
+        case .unknownFlags(let flags):
             "DD21 contains unknown feature flag bits: 0x\(String(format: "%02x", flags))."
         case .nonzeroReserved:
             "DD21 contains non-zero reserved bytes."
@@ -142,7 +143,8 @@ enum SonyLocationCapabilityResolver {
             return unsupported(protocolVersion, error)
         }
 
-        let hasControls = locationDescriptors[SonyProtocol.locationLockUUID.lowercased()] != nil
+        let hasControls =
+            locationDescriptors[SonyProtocol.locationLockUUID.lowercased()] != nil
             && locationDescriptors[SonyProtocol.locationEnableUUID.lowercased()] != nil
         let optional = optionalCapabilities(locationDescriptors)
         return resolveVersion(
@@ -187,7 +189,8 @@ enum SonyLocationCapabilityResolver {
         guard profile.isExecutable else {
             return SonyCompatibility(confidence: .unsupported, evidence: nil)
         }
-        for entry in unsupportedEntries + verifiedEntries where entryMatches(entry, identity: identity, profile: profile) {
+        for entry in unsupportedEntries + verifiedEntries
+        where entryMatches(entry, identity: identity, profile: profile) {
             return SonyCompatibility(confidence: entry.confidence, evidence: entry.evidence)
         }
         return SonyCompatibility(confidence: .experimental, evidence: nil)
@@ -250,8 +253,9 @@ enum SonyLocationCapabilityResolver {
             return "Only one of DD30/DD31 is present."
         }
         if hasDD30,
-           !(has(descriptors, SonyProtocol.locationLockUUID, .write)
-               && has(descriptors, SonyProtocol.locationEnableUUID, .write)) {
+            !(has(descriptors, SonyProtocol.locationLockUUID, .write)
+                && has(descriptors, SonyProtocol.locationEnableUUID, .write))
+        {
             return "DD30/DD31 must both support write-with-response."
         }
         return nil

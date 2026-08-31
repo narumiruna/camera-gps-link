@@ -1,6 +1,7 @@
 import SwiftUI
+
 #if canImport(UIKit)
-import UIKit
+    import UIKit
 #endif
 
 struct DiagnosticsView: View {
@@ -51,9 +52,11 @@ struct DiagnosticsView: View {
 
             Section("Pairing Initialization") {
                 diagnosticRow("Status", camera.pairingStatus)
-                Text("EE01 is never part of a location session. Use this only while the camera is explicitly in pairing mode.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                Text(
+                    "EE01 is never part of a location session. Use this only while the camera is explicitly in pairing mode."
+                )
+                .font(.footnote)
+                .foregroundStyle(.secondary)
                 Button("Initialize Camera Pairing") {
                     appModel.requestPairingInitialization()
                 }
@@ -123,7 +126,7 @@ struct DiagnosticsView: View {
         }
         .navigationTitle("Diagnostics")
         #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.inline)
         #endif
         .accessibilityIdentifier("diagnostics-view")
         .confirmationDialog(
@@ -184,7 +187,7 @@ struct DiagnosticsView: View {
 
     private func copyLog() {
         #if canImport(UIKit)
-        UIPasteboard.general.string = logStore.copyText
+            UIPasteboard.general.string = logStore.copyText
         #endif
         didCopy = true
     }

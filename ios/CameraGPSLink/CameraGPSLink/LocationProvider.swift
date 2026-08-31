@@ -42,7 +42,8 @@ final class LocationProvider: NSObject, ObservableObject, CLLocationManagerDeleg
 
     var onLocationUpdate: ((CLLocation) -> Void)?
 
-    private static let backgroundLinkNeedsAlwaysMessage = "Background Link needs Always Location permission for reliable background updates."
+    private static let backgroundLinkNeedsAlwaysMessage =
+        "Background Link needs Always Location permission for reliable background updates."
 
     private let manager = CLLocationManager()
     private var backgroundLinkEnabled = false
@@ -57,8 +58,8 @@ final class LocationProvider: NSObject, ObservableObject, CLLocationManagerDeleg
         manager.distanceFilter = 5
         manager.pausesLocationUpdatesAutomatically = false
         #if os(iOS)
-        manager.allowsBackgroundLocationUpdates = false
-        manager.showsBackgroundLocationIndicator = false
+            manager.allowsBackgroundLocationUpdates = false
+            manager.showsBackgroundLocationIndicator = false
         #endif
     }
 
@@ -73,8 +74,8 @@ final class LocationProvider: NSObject, ObservableObject, CLLocationManagerDeleg
         case .authorizedAlways:
             "Always allowed"
         #if os(iOS)
-        case .authorizedWhenInUse:
-            "When-in-use allowed"
+            case .authorizedWhenInUse:
+                "When-in-use allowed"
         #endif
         @unknown default:
             "Unknown"
@@ -106,8 +107,8 @@ final class LocationProvider: NSObject, ObservableObject, CLLocationManagerDeleg
         case .authorizedAlways:
             .always
         #if os(iOS)
-        case .authorizedWhenInUse:
-            .whenInUse
+            case .authorizedWhenInUse:
+                .whenInUse
         #endif
         @unknown default:
             .unknown
@@ -126,10 +127,12 @@ final class LocationProvider: NSObject, ObservableObject, CLLocationManagerDeleg
     }
 
     private var backgroundLinkPermissionWarning: String? {
-        guard LocationBackgroundPolicy.requiresAlwaysAuthorizationWarning(
-            backgroundLinkEnabled: backgroundLinkEnabled,
-            authorizationScope: authorizationScope
-        ) else {
+        guard
+            LocationBackgroundPolicy.requiresAlwaysAuthorizationWarning(
+                backgroundLinkEnabled: backgroundLinkEnabled,
+                authorizationScope: authorizationScope
+            )
+        else {
             return nil
         }
         return Self.backgroundLinkNeedsAlwaysMessage
@@ -150,17 +153,17 @@ final class LocationProvider: NSObject, ObservableObject, CLLocationManagerDeleg
         switch authorizationStatus {
         case .notDetermined:
             #if os(iOS)
-            manager.requestWhenInUseAuthorization()
+                manager.requestWhenInUseAuthorization()
             #else
-            manager.requestAlwaysAuthorization()
+                manager.requestAlwaysAuthorization()
             #endif
         #if os(iOS)
-        case .authorizedWhenInUse:
-            if preferAlways || backgroundLinkEnabled {
-                manager.requestAlwaysAuthorization()
-            } else {
-                startUpdating()
-            }
+            case .authorizedWhenInUse:
+                if preferAlways || backgroundLinkEnabled {
+                    manager.requestAlwaysAuthorization()
+                } else {
+                    startUpdating()
+                }
         #endif
         case .authorizedAlways:
             startUpdating()
@@ -179,11 +182,11 @@ final class LocationProvider: NSObject, ObservableObject, CLLocationManagerDeleg
             applyLocationSettings()
             startLocationServices()
         #if os(iOS)
-        case .authorizedWhenInUse:
-            isUpdating = true
-            lastError = backgroundLinkPermissionWarning
-            applyLocationSettings()
-            startLocationServices()
+            case .authorizedWhenInUse:
+                isUpdating = true
+                lastError = backgroundLinkPermissionWarning
+                applyLocationSettings()
+                startLocationServices()
         #endif
         case .notDetermined:
             requestAuthorization(preferAlways: backgroundLinkEnabled)
@@ -200,8 +203,8 @@ final class LocationProvider: NSObject, ObservableObject, CLLocationManagerDeleg
         manager.stopUpdatingLocation()
         manager.stopMonitoringSignificantLocationChanges()
         #if os(iOS)
-        manager.allowsBackgroundLocationUpdates = false
-        manager.showsBackgroundLocationIndicator = false
+            manager.allowsBackgroundLocationUpdates = false
+            manager.showsBackgroundLocationIndicator = false
         #endif
     }
 
@@ -209,17 +212,18 @@ final class LocationProvider: NSObject, ObservableObject, CLLocationManagerDeleg
         let allowBackgroundUpdates = allowsBackgroundLocationUpdates
 
         #if os(iOS)
-        // Only Always authorization can hide the background-location blue indicator
-        // reliably. With When-In-Use authorization, keep updates foreground-only.
-        manager.allowsBackgroundLocationUpdates = allowBackgroundUpdates
-        manager.showsBackgroundLocationIndicator = false
+            // Only Always authorization can hide the background-location blue indicator
+            // reliably. With When-In-Use authorization, keep updates foreground-only.
+            manager.allowsBackgroundLocationUpdates = allowBackgroundUpdates
+            manager.showsBackgroundLocationIndicator = false
         #endif
 
         if isUpdating,
-           !LocationBackgroundPolicy.canRunLocationServices(
-               isForeground: isForeground,
-               allowsBackgroundLocationUpdates: allowBackgroundUpdates
-           ) {
+            !LocationBackgroundPolicy.canRunLocationServices(
+                isForeground: isForeground,
+                allowsBackgroundLocationUpdates: allowBackgroundUpdates
+            )
+        {
             manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
             manager.distanceFilter = 50
             updateModeLabel = "Paused in background"
@@ -236,10 +240,12 @@ final class LocationProvider: NSObject, ObservableObject, CLLocationManagerDeleg
 
     private func startLocationServices() {
         let allowBackgroundUpdates = allowsBackgroundLocationUpdates
-        guard LocationBackgroundPolicy.canRunLocationServices(
-            isForeground: isForeground,
-            allowsBackgroundLocationUpdates: allowBackgroundUpdates
-        ) else {
+        guard
+            LocationBackgroundPolicy.canRunLocationServices(
+                isForeground: isForeground,
+                allowsBackgroundLocationUpdates: allowBackgroundUpdates
+            )
+        else {
             manager.stopUpdatingLocation()
             manager.stopMonitoringSignificantLocationChanges()
             updateModeLabel = "Paused in background"
