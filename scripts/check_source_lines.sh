@@ -6,7 +6,7 @@ file_count=0
 failure_count=0
 roots=("$@")
 if ((${#roots[@]} == 0)); then
-    roots=(ios/CameraGPSLink)
+    roots=(CameraGPSLink CameraGPSLinkTests CameraGPSLinkUnitTests CameraGPSLinkUITests)
 fi
 
 path_list=$(mktemp -t camera-gps-link-source-lines.XXXXXX)

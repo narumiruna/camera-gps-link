@@ -7,7 +7,7 @@ Identify which library under `third_party/` is the most reliable reference for t
 ## Context
 
 - The user has confirmed that the current implementation works correctly on a physical Sony A7C II.
-- The A7C II baseline is recorded in `docs/a7c2-ble-map.md`, `src/sonygeotag/sony_protocol.py`, `src/sonygeotag/sony_location.py`, `ios/CameraGPSLink/CameraGPSLink/SonyProtocol.swift`, and `ios/CameraGPSLink/CameraGPSLink/CameraBLEManager.swift`.
+- The A7C II baseline is recorded in `docs/a7c2-ble-map.md`, `src/sonygeotag/sony_protocol.py`, `src/sonygeotag/sony_location.py`, `CameraGPSLink/SonyProtocol.swift`, and `CameraGPSLink/CameraBLEManager.swift`.
 - The completed exact-identifier screen found direct DD location material only in `third_party/CameraSync/` and `third_party/ILCE7M3ExternalGps/`; all 16 top-level libraries are classified in `docs/third-party-sony-protocol-reliability.md`.
 - `third_party/references.md` now records 38 useful source, caveat, scope, and error notes, and `.gitignore` explicitly allows that file to be tracked while keeping third-party checkouts ignored.
 

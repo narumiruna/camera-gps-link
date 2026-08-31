@@ -1,7 +1,7 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
 xcode_dev_dir := "/Applications/Xcode.app/Contents/Developer"
-ios_project := "ios/CameraGPSLink/CameraGPSLink.xcodeproj"
+ios_project := "CameraGPSLink.xcodeproj"
 ios_target := "CameraGPSLink"
 ios_scheme := "CameraGPSLink"
 ios_smoke := "/tmp/CameraGPSLinkSmoke"
@@ -32,17 +32,17 @@ ios-open:
 
 # Run the Swift DD11 protocol and location policy smoke test
 ios-smoke:
-    swiftc ios/CameraGPSLink/CameraGPSLink/SonyProtocol.swift ios/CameraGPSLink/CameraGPSLink/SonyLocationProfile.swift ios/CameraGPSLink/CameraGPSLink/SonyLocationSessionPlan.swift ios/CameraGPSLink/CameraGPSLink/LocationProvider.swift ios/CameraGPSLink/CameraGPSLinkTests/main.swift -o {{ios_smoke}}
+    swiftc CameraGPSLink/SonyProtocol.swift CameraGPSLink/SonyLocationProfile.swift CameraGPSLink/SonyLocationSessionPlan.swift CameraGPSLink/LocationProvider.swift CameraGPSLinkTests/main.swift -o {{ios_smoke}}
     {{ios_smoke}}
 
 # Type check all Swift sources
 ios-typecheck:
-    swiftc -typecheck ios/CameraGPSLink/CameraGPSLink/*.swift
+    swiftc -typecheck CameraGPSLink/*.swift
 
 # Lint iOS plist/project XML files
 ios-lint-project:
-    plutil -lint ios/CameraGPSLink/CameraGPSLink/Info.plist ios/CameraGPSLink/CameraGPSLink.xcodeproj/project.pbxproj
-    xmllint --noout ios/CameraGPSLink/CameraGPSLink.xcodeproj/xcshareddata/xcschemes/CameraGPSLink.xcscheme
+    plutil -lint CameraGPSLink/Info.plist CameraGPSLink.xcodeproj/project.pbxproj
+    xmllint --noout CameraGPSLink.xcodeproj/xcshareddata/xcschemes/CameraGPSLink.xcscheme
 
 # Build the iOS target for Simulator
 ios-build-sim:
@@ -93,4 +93,4 @@ ios-console device="00008140-0001588C017B001C":
 
 # Remove local build/test artifacts
 clean:
-    rm -rf ios/CameraGPSLink/build {{ios_smoke}}
+    rm -rf build {{ios_smoke}}

@@ -8,7 +8,7 @@ See the accepted [`A7C II-only release plan`](docs/plans/2026-08-31_ios-a7c2-onl
 
 ## What this repository contains
 
-- **Camera GPS Link iOS app** in `ios/CameraGPSLink`, built with SwiftUI, CoreBluetooth, and CoreLocation.
+- **Camera GPS Link iOS app** in `CameraGPSLink/`, built with SwiftUI, CoreBluetooth, and CoreLocation.
 - **Protocol and compatibility documentation** for the observed Sony A7C II BLE location flow.
 - **Privacy and support documentation** for App Store distribution.
 
@@ -33,7 +33,7 @@ The Python `sonygeotag` CLI, BLE diagnostics, and EXIF verification tools are ma
 **Ready to Geotag** appears only after the camera receives the first successful location packet in the current session.
 Background updates remain subject to iOS permissions and scheduling and cannot guarantee a fresh fix immediately before every photo.
 
-See [`ios/CameraGPSLink/README.md`](ios/CameraGPSLink/README.md) for the complete workflow, settings, permission states, diagnostics behavior, and platform limitations.
+See the [`iOS app guide`](docs/ios-app.md) for the complete workflow, settings, permission states, diagnostics behavior, and platform limitations.
 
 ## Development
 
@@ -62,11 +62,15 @@ just check
 ## Project layout
 
 ```text
-ios/CameraGPSLink/  SwiftUI app and XCTest suites
-docs/               Protocol, compatibility, privacy, support, and release documents
-third_party/         Curated third-party reference index
-scripts/             Repository verification helpers
-justfile             Local iOS commands
+CameraGPSLink.xcodeproj/  Xcode project
+CameraGPSLink/            SwiftUI app target
+CameraGPSLinkUnitTests/   XCTest unit suite
+CameraGPSLinkUITests/     XCUITest suite
+CameraGPSLinkTests/       Standalone Swift smoke test
+docs/                     App, protocol, privacy, support, and release documents
+third_party/              Curated third-party reference index
+scripts/                  Repository verification helpers
+justfile                  Local iOS commands
 ```
 
 ## Privacy and support
