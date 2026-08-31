@@ -190,6 +190,9 @@ uv run sonygeotag verify-exif \
 
 The SwiftUI/CoreBluetooth/CoreLocation app lives in:
 
+The first public iOS App Store release is scoped only to Sony Alpha 7C II (`ILCE-7CM2`).
+See the accepted [`A7C II-only release plan`](docs/plans/2026-08-31_ios-a7c2-only-app-store-release-plan.md) for the runtime policy, physical qualification, metadata, and review gates.
+
 ```bash
 ios/CameraGPSLink
 ```
