@@ -171,23 +171,27 @@ final class SonyReleasePolicyTests: XCTestCase {
     }
 
     @MainActor
-    func testQualificationLocationBeginsWithReadOnlyDD21Preflight() {
-        let fixture = makeCandidate()
-        let manager = makeManager(policy: SonyReleasePolicy(mode: .qualification))
-        manager.activeSessionRequested = true
-        manager.connectionIntent = .location
-        manager.discoveredCameraName = fixture.identity.model
-        manager.detectedFirmware = fixture.identity.firmware
-        manager.advertisementProtocolVersion = fixture.identity.protocolVersion
-        manager.descriptors = fixture.descriptors
+    func testQualificationLocationAndPairingBeginWithReadOnlyDD21Preflight() {
+        for intent in [CameraConnectionIntent.location, .pairing] {
+            let fixture = makeCandidate(includePairing: true)
+            let manager = makeManager(policy: SonyReleasePolicy(mode: .qualification))
+            manager.activeSessionRequested = true
+            manager.connectionIntent = intent
+            manager.discoveredCameraName = fixture.identity.model
+            manager.detectedFirmware = fixture.identity.firmware
+            manager.advertisementProtocolVersion = fixture.identity.protocolVersion
+            manager.descriptors = fixture.descriptors
 
-        manager.resolveDiscoveredProfile()
+            manager.resolveDiscoveredProfile()
 
-        XCTAssertEqual(manager.sanitizedOperationOrder, ["DD21 preflight"])
-        XCTAssertFalse(manager.sanitizedOperationOrder.contains("DD01 notify"))
-        XCTAssertFalse(manager.sanitizedOperationOrder.contains("DD30 lock"))
-        XCTAssertFalse(manager.sanitizedOperationOrder.contains("DD31 enable"))
-        XCTAssertFalse(manager.sanitizedOperationOrder.contains("DD11 location"))
+            XCTAssertEqual(manager.sanitizedOperationOrder, ["DD21 preflight"])
+            XCTAssertFalse(manager.sanitizedOperationOrder.contains("DD01 notify"))
+            XCTAssertFalse(manager.sanitizedOperationOrder.contains("DD30 lock"))
+            XCTAssertFalse(manager.sanitizedOperationOrder.contains("DD31 enable"))
+            XCTAssertFalse(manager.sanitizedOperationOrder.contains("DD11 location"))
+            XCTAssertFalse(manager.sanitizedOperationOrder.contains("EE01 pairing init"))
+            XCTAssertFalse(manager.pairingConfirmationPending)
+        }
     }
 
     @MainActor

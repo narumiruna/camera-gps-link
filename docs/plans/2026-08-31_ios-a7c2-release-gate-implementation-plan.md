@@ -33,7 +33,7 @@ Until background behavior passes physical qualification, public Release builds m
 
 - Complete service/characteristic discovery and CC0A/CC0B identity reads first.
 - Evaluate the distribution policy before reading DD21.
-- For a permitted location candidate, read and strictly parse DD21 before DD01 subscription, DD30/DD31, or DD11.
+- For every permitted location or pairing candidate, read and strictly parse DD21 before DD01 subscription, DD30/DD31, DD11, or EE01.
 - Reject malformed DD21 and packet-size mismatches as unsupported.
 - Remove DD21 from the write-capable location setup plan; the plan starts only after preflight succeeds.
 - Apply the exact identity/profile/descriptor policy to EE01 pairing before presenting its final write confirmation.
@@ -43,15 +43,15 @@ flowchart TD
     A[Discover CC DD EE descriptors] --> B[Read model and firmware]
     B --> C{Distribution policy allows identity and profile?}
     C -- No --> X[Unsupported; no notification or write]
-    C -- Yes, location --> D[Read and strictly parse DD21]
+    C -- Yes --> D[Read and strictly parse DD21]
     D --> E{Expected packet size?}
     E -- No --> X
-    E -- Yes --> F{Development approval required?}
+    E -- Yes, location --> F{Development approval required?}
     F -- Yes --> G[Show volatile approval]
     F -- No --> H[Execute location setup]
     G --> H
     H --> I[DD01 then DD30/DD31 then DD11]
-    C -- Yes, pairing --> J{Development approval required?}
+    E -- Yes, pairing --> J{Development approval required?}
     J -- Yes --> K[Show volatile pairing approval]
     J -- No --> L[Show final EE01 confirmation]
     K --> L

@@ -534,11 +534,7 @@ final class CameraBLEManager: NSObject, ObservableObject {
             releaseAuthorization = authorization
             supportConfidence = authorization.confidence
             appendResolvedProfile(identity: identity, profile: profile)
-            if connectionIntent == .pairing {
-                completeReadOnlyPreflight()
-            } else {
-                beginDD21Preflight()
-            }
+            beginDD21Preflight()
         }
     }
 

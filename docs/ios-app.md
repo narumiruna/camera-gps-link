@@ -81,7 +81,7 @@ The app resolves behavior from complete Sony CC/DD/EE service discovery and requ
 
 Strict DD21 accepts only evidence-backed 6/7-byte framing and controls the 95- or 91-byte DD11 packet. Qualification and public Release entries may require one exact packet size. Failure, cancellation, and timeout compensate every dispatched, possibly applied modern control in DD31-then-DD30 order. Cleanup cannot be disabled.
 
-Ordinary and experimental location sessions never send EE01. Diagnostics exposes **Initialize Camera Pairing** as a separate confirmed action after the active location session is stopped. It performs fresh identity/profile/descriptor discovery and applies the same distribution policy before showing the final EE01 confirmation. Only development builds may require and accept an experimental pairing approval. The camera must be explicitly on its pairing screen.
+Ordinary and experimental location sessions never send EE01. Diagnostics exposes **Initialize Camera Pairing** as a separate confirmed action after the active location session is stopped. It performs fresh identity/profile/descriptor discovery, strict DD21 preflight, and the same distribution-policy packet-size validation before showing the final EE01 confirmation. Only development builds may require and accept an experimental pairing approval. The camera must be explicitly on its pairing screen.
 
 ## Build and test
 
