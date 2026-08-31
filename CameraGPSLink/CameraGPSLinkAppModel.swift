@@ -230,6 +230,9 @@ final class CameraGPSLinkAppModel: ObservableObject {
     @Published private(set) var viewState: GeotaggingViewState
 
     let diagnosticsStore: DiagnosticsLogStore
+    let releasePolicy: SonyReleasePolicy
+
+    var allowsBackground: Bool { releasePolicy.allowsBackground }
 
     private let cameraService: CameraLinkServicing
     private let locationService: LocationServicing
@@ -252,14 +255,15 @@ final class CameraGPSLinkAppModel: ObservableObject {
 
     convenience init() {
         let diagnostics = DiagnosticsLogStore()
+        let releasePolicy = SonyReleasePolicy.current
         let locationProvider = LocationProvider()
-        let cameraManager = CameraBLEManager(diagnosticsStore: diagnostics)
+        let cameraManager = CameraBLEManager(diagnosticsStore: diagnostics, releasePolicy: releasePolicy)
         let locationAdapter = CoreLocationServiceAdapter(provider: locationProvider)
         let cameraAdapter = CameraBLEServiceAdapter(manager: cameraManager)
         self.init(
             cameraService: cameraAdapter,
             locationService: locationAdapter,
-            settingsStore: UserDefaultsLinkSettingsStore(),
+            settingsStore: UserDefaultsLinkSettingsStore(allowsBackground: releasePolicy.allowsBackground),
             diagnosticsStore: diagnostics,
             now: Date.init,
             openSettings: {
@@ -267,7 +271,8 @@ final class CameraGPSLinkAppModel: ObservableObject {
                     guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
                     UIApplication.shared.open(url)
                 #endif
-            }
+            },
+            releasePolicy: releasePolicy
         )
         isProductionRuntime = true
         registerBackgroundTasks()
@@ -279,19 +284,21 @@ final class CameraGPSLinkAppModel: ObservableObject {
         settingsStore: LinkSettingsStoring,
         diagnosticsStore: DiagnosticsLogStore,
         now: @escaping () -> Date,
-        openSettings: @escaping () -> Void
+        openSettings: @escaping () -> Void,
+        releasePolicy: SonyReleasePolicy = .current
     ) {
         self.cameraService = cameraService
         self.locationService = locationService
         self.settingsStore = settingsStore
         self.diagnosticsStore = diagnosticsStore
+        self.releasePolicy = releasePolicy
         self.now = now
         self.openSettingsAction = openSettings
 
         let loadedSettings: LinkSettings
         let initialError: String?
         do {
-            loadedSettings = try settingsStore.load()
+            loadedSettings = try settingsStore.load().restrictingBackground(to: releasePolicy.allowsBackground)
             initialError = nil
         } catch {
             loadedSettings = .default
@@ -307,6 +314,7 @@ final class CameraGPSLinkAppModel: ObservableObject {
                 isForeground: true,
                 pendingStart: false,
                 transientError: initialError,
+                allowsExperimentalApproval: releasePolicy.allowsExperimentalApproval,
                 now: now()
             ),
             now: now()
@@ -452,30 +460,31 @@ final class CameraGPSLinkAppModel: ObservableObject {
 
     @discardableResult
     func applySettings(_ newSettings: LinkSettings) -> Bool {
-        guard newSettings != settings else { return true }
+        let acceptedSettings = newSettings.restrictingBackground(to: releasePolicy.allowsBackground)
+        guard acceptedSettings != settings else { return true }
         let previous = settings
         do {
-            try settingsStore.save(newSettings)
+            try settingsStore.save(acceptedSettings)
         } catch {
             transientError = "Link settings couldn’t be applied. Your previous settings are still active."
             refreshViewState()
             return false
         }
 
-        settings = newSettings
+        settings = acceptedSettings
         transientError = nil
-        cameraService.configure(settings: newSettings)
-        locationService.configure(settings: newSettings, isForeground: isForeground)
+        cameraService.configure(settings: acceptedSettings)
+        locationService.configure(settings: acceptedSettings, isForeground: isForeground)
 
         if linkRequested,
-            newSettings.backgroundLinkEnabled,
+            acceptedSettings.backgroundLinkEnabled,
             !previous.backgroundLinkEnabled,
             locationService.snapshot.permission.allowsForegroundLocation
         {
             locationService.startUpdating()
             cameraService.resumeBackgroundLink()
         }
-        if !newSettings.backgroundLinkEnabled, !isForeground {
+        if !acceptedSettings.backgroundLinkEnabled, !isForeground {
             locationService.stopUpdating()
         }
         scheduleBackgroundRefresh()
@@ -544,6 +553,7 @@ final class CameraGPSLinkAppModel: ObservableObject {
                 isForeground: isForeground,
                 pendingStart: pendingStart,
                 transientError: transientError,
+                allowsExperimentalApproval: releasePolicy.allowsExperimentalApproval,
                 now: now()
             ),
             now: now()
@@ -564,6 +574,7 @@ final class CameraGPSLinkAppModel: ObservableObject {
         isForeground: Bool,
         pendingStart: Bool,
         transientError: String?,
+        allowsExperimentalApproval: Bool,
         now: Date
     ) -> GeotaggingSnapshot {
         let currentLocation = location.currentLocation
@@ -594,7 +605,8 @@ final class CameraGPSLinkAppModel: ObservableObject {
             firmware: camera.firmware,
             protocolVersion: camera.protocolVersion,
             packetSize: camera.packetSize,
-            cleanupDiagnostic: camera.cleanupDiagnostic
+            cleanupDiagnostic: camera.cleanupDiagnostic,
+            allowsExperimentalApproval: allowsExperimentalApproval
         )
     }
 

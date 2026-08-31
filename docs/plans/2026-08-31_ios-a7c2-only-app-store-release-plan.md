@@ -1,6 +1,6 @@
 # A7C II-only iOS App Store release plan
 
-- Status: Accepted; implementation pending.
+- Status: Accepted; implementation in progress.
 - Decision date: 2026-08-31.
 - Scope: The public iOS App Store release only.
 - Supported camera target: Sony Alpha 7C II (`ILCE-7CM2`).

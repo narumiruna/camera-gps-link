@@ -224,6 +224,11 @@ final class CameraBLEManagerPlanIntegrationTests: XCTestCase {
             identityStore: InMemoryIdentityStore()
         )
         manager.currentIdentity = SonyCameraIdentity(model: "ILCE-7M4", firmware: "4.00", protocolVersion: 101)
+        manager.releaseAuthorization = SonyReleaseAuthorization(
+            requiresExperimentalApproval: true,
+            expectedPacketSize: nil,
+            confidence: .experimental
+        )
         manager.sessionApprovalKey = "stale"
         manager.detectedFirmware = "4.00"
         manager.packetSize = 95
@@ -231,6 +236,7 @@ final class CameraBLEManagerPlanIntegrationTests: XCTestCase {
         manager.prepareForNewSession(resetCounters: false)
 
         XCTAssertNil(manager.currentIdentity)
+        XCTAssertNil(manager.releaseAuthorization)
         XCTAssertNil(manager.sessionApprovalKey)
         XCTAssertNil(manager.detectedFirmware)
         XCTAssertNil(manager.packetSize)
@@ -256,6 +262,11 @@ final class CameraBLEManagerPlanIntegrationTests: XCTestCase {
             hasAreaAdjustment: false
         )
         manager.supportConfidence = .experimental
+        manager.releaseAuthorization = SonyReleaseAuthorization(
+            requiresExperimentalApproval: true,
+            expectedPacketSize: nil,
+            confidence: .experimental
+        )
         manager.sessionApprovalKey = "approval-for-another-camera"
 
         manager.beginLocationSetup()
@@ -288,6 +299,12 @@ final class CameraBLEManagerPlanIntegrationTests: XCTestCase {
         manager.currentIdentity = SonyCameraIdentity(model: "ILCE-7M3", firmware: "4.01", protocolVersion: 64)
         manager.resolvedProfile = profile
         manager.supportConfidence = .verified
+        manager.releaseAuthorization = SonyReleaseAuthorization(
+            requiresExperimentalApproval: false,
+            expectedPacketSize: 91,
+            confidence: .verified
+        )
+        manager.packetSize = 91
         manager.activeSessionRequested = true
 
         manager.beginLocationSetup()

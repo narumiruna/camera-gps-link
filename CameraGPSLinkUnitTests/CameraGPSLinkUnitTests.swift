@@ -239,7 +239,7 @@ final class SonyLocationProfileTests: XCTestCase {
         let plan = SonyLocationSessionPlan.make(profile: profile)
         var executed: [String] = []
         DefaultSonyLocationSessionExecutor().execute(plan: plan) { executed.append($0.name) }
-        XCTAssertEqual(executed, ["DD01 notify", "DD30 lock", "DD31 enable", "DD21 config"])
+        XCTAssertEqual(executed, ["DD01 notify", "DD30 lock", "DD31 enable"])
 
         var acquisition = SonyLocationAcquisition()
         acquisition.recordAttempt(actionName: "DD30 lock")

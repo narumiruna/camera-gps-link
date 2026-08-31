@@ -112,6 +112,20 @@ final class CameraGPSLinkUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Cancel"].exists)
     }
 
+    func testPublicReleaseHidesExperimentalOverride() {
+        launch("public-release-experimental")
+        XCTAssertTrue(app.staticTexts["Unsupported Camera Profile"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["This camera identity is not supported by this public release."].exists)
+        XCTAssertFalse(app.buttons["Continue with Experimental Profile"].exists)
+    }
+
+    func testPublicReleaseHidesBackgroundOption() {
+        launch("public-release-settings")
+        openLinkSettings()
+        XCTAssertFalse(app.staticTexts["Continue in Background"].exists)
+        XCTAssertFalse(app.buttons["Continue in Background"].exists)
+    }
+
     func testPermissionDeniedShowsActionableRecovery() {
         launch("permission-denied")
 
@@ -276,11 +290,18 @@ final class CameraGPSLinkUITests: XCTestCase {
     }
 
     private func openLinkSettings() {
-        let button = app.buttons["link-settings"]
-        scrollUntilVisible(button)
-        XCTAssertTrue(button.isHittable)
-        button.tap()
-        XCTAssertTrue(app.navigationBars["Link Settings"].waitForExistence(timeout: 3))
+        let navigationBar = app.navigationBars["Link Settings"]
+        for _ in 0..<3 {
+            let button = app.buttons["link-settings"]
+            scrollUntilVisible(button)
+            if button.isHittable {
+                button.tap()
+            }
+            if navigationBar.waitForExistence(timeout: 3) {
+                return
+            }
+        }
+        XCTFail("Link Settings did not open")
     }
 
     private func selectSetting(_ label: String) {

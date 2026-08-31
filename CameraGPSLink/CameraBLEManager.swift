@@ -44,6 +44,7 @@ final class CameraBLEManager: NSObject, ObservableObject {
     var pendingCharacteristicServices: Set<String> = []
     var didCompleteIdentityDiscovery = false
     var currentIdentity: SonyCameraIdentity?
+    var releaseAuthorization: SonyReleaseAuthorization?
     var sessionApprovalKey: String?
     var acquisition = SonyLocationAcquisition()
     var connectionIntent: CameraConnectionIntent = .location
@@ -70,6 +71,7 @@ final class CameraBLEManager: NSObject, ObservableObject {
     let maximumFutureLocationSkew: TimeInterval = 10
     let diagnosticsStore: DiagnosticsLogStore
     let identityStore: any SonyValidatedIdentityStoring
+    let releasePolicy: SonyReleasePolicy
     let sessionPlanner: any SonyLocationSessionPlanning
     let sessionExecutor: any SonyLocationSessionExecuting
     let logger = Logger(subsystem: "dev.narumi.cameragpslink", category: "BLE")
@@ -83,11 +85,15 @@ final class CameraBLEManager: NSObject, ObservableObject {
         self.init(diagnosticsStore: DiagnosticsLogStore())
     }
 
-    convenience init(diagnosticsStore: DiagnosticsLogStore) {
+    convenience init(
+        diagnosticsStore: DiagnosticsLogStore,
+        releasePolicy: SonyReleasePolicy = .current
+    ) {
         self.init(
             diagnosticsStore: diagnosticsStore,
             timeoutPolicy: ForegroundConnectionTimeoutPolicy(),
-            timeoutScheduler: .live
+            timeoutScheduler: .live,
+            releasePolicy: releasePolicy
         )
     }
 
@@ -96,14 +102,20 @@ final class CameraBLEManager: NSObject, ObservableObject {
         timeoutPolicy: ForegroundConnectionTimeoutPolicy,
         timeoutScheduler: ConnectionTimeoutScheduler,
         identityStore: any SonyValidatedIdentityStoring = UserDefaultsSonyValidatedIdentityStore(),
+        releasePolicy: SonyReleasePolicy = .current,
         sessionPlanner: any SonyLocationSessionPlanning = DefaultSonyLocationSessionPlanner(),
         sessionExecutor: any SonyLocationSessionExecuting = DefaultSonyLocationSessionExecutor()
     ) {
         self.diagnosticsStore = diagnosticsStore
         self.identityStore = identityStore
+        self.releasePolicy = releasePolicy
         self.sessionPlanner = sessionPlanner
         self.sessionExecutor = sessionExecutor
         super.init()
+        if !releasePolicy.allowsBackground {
+            backgroundLinkEnabled = false
+            UserDefaults.standard.set(false, forKey: CameraBLEDefaults.backgroundLinkEnabled)
+        }
         foregroundTimeoutSession = ForegroundConnectionTimeoutSession(
             policy: timeoutPolicy,
             scheduler: timeoutScheduler
@@ -136,27 +148,28 @@ final class CameraBLEManager: NSObject, ObservableObject {
     }
 
     func configure(backgroundLinkEnabled: Bool, lowPowerModeEnabled: Bool) {
+        let effectiveBackgroundLinkEnabled = backgroundLinkEnabled && releasePolicy.allowsBackground
         let didChange =
-            self.backgroundLinkEnabled != backgroundLinkEnabled
+            self.backgroundLinkEnabled != effectiveBackgroundLinkEnabled
             || self.lowPowerModeEnabled != lowPowerModeEnabled
-        self.backgroundLinkEnabled = backgroundLinkEnabled
+        self.backgroundLinkEnabled = effectiveBackgroundLinkEnabled
         self.lowPowerModeEnabled = lowPowerModeEnabled
         updateInterval =
             lowPowerModeEnabled
             ? CameraBLEDefaults.lowPowerUpdateInterval
             : CameraBLEDefaults.foregroundUpdateInterval
-        UserDefaults.standard.set(backgroundLinkEnabled, forKey: CameraBLEDefaults.backgroundLinkEnabled)
+        UserDefaults.standard.set(effectiveBackgroundLinkEnabled, forKey: CameraBLEDefaults.backgroundLinkEnabled)
         UserDefaults.standard.set(lowPowerModeEnabled, forKey: CameraBLEDefaults.lowPowerModeEnabled)
 
         if didChange {
             appendLog(
-                "BLE settings: backgroundLink=\(backgroundLinkEnabled) lowPower=\(lowPowerModeEnabled) interval=\(Int(updateInterval))s"
+                "BLE settings: backgroundLink=\(effectiveBackgroundLinkEnabled) lowPower=\(lowPowerModeEnabled) interval=\(Int(updateInterval))s"
             )
         }
         if state == .linked {
             restartSendTimer()
         }
-        if !backgroundLinkEnabled {
+        if !effectiveBackgroundLinkEnabled {
             disarmPendingReconnect()
         }
     }
@@ -277,6 +290,7 @@ final class CameraBLEManager: NSObject, ObservableObject {
         timedOutCallbackDebt.removeAll()
         didCompleteIdentityDiscovery = false
         currentIdentity = nil
+        releaseAuthorization = nil
         sessionApprovalKey = nil
         acquisition = SonyLocationAcquisition()
         cancelAfterCurrentOperation = false
@@ -399,6 +413,7 @@ final class CameraBLEManager: NSObject, ObservableObject {
         packetSize = nil
         dd21ConfigHex = nil
         currentIdentity = nil
+        releaseAuthorization = nil
         sessionApprovalKey = nil
         experimentalApprovalPending = false
         pairingConfirmationPending = false
@@ -456,21 +471,12 @@ final class CameraBLEManager: NSObject, ObservableObject {
         }
 
         let identity = SonyCameraIdentity(model: model, firmware: detectedFirmware, protocolVersion: protocolVersion)
-        var profile = SonyLocationCapabilityResolver.resolve(
+        let profile = SonyLocationCapabilityResolver.resolve(
             protocolVersion: protocolVersion,
             descriptors: descriptors,
             discoveryComplete: pendingCharacteristicServices.isEmpty
         )
-        var compatibility = SonyLocationCapabilityResolver.compatibility(identity: identity, profile: profile)
-        if compatibility.confidence == .unsupported {
-            profile = SonyLocationCapabilityResolver.resolve(
-                protocolVersion: protocolVersion,
-                descriptors: descriptors,
-                discoveryComplete: true,
-                registryConfidence: .unsupported
-            )
-            compatibility = SonyCompatibility(confidence: .unsupported, evidence: compatibility.evidence)
-        }
+        let compatibility = SonyLocationCapabilityResolver.compatibility(identity: identity, profile: profile)
         if let stored,
             !stored.matches(
                 peripheralID: peripheral?.identifier.uuidString ?? "",
@@ -486,18 +492,65 @@ final class CameraBLEManager: NSObject, ObservableObject {
         targetName = identity.model
         advertisementProtocolVersion = protocolVersion
         resolvedProfile = profile
-        supportConfidence = profile.isExecutable ? compatibility.confidence : .unsupported
+
+        switch releasePolicy.evaluate(
+            identity: identity,
+            profile: profile,
+            descriptors: descriptors,
+            genericCompatibility: compatibility
+        ) {
+        case .unsupported(let reason):
+            supportConfidence = .unsupported
+            appendResolvedProfile(identity: identity, profile: profile)
+            rejectUnsupportedProfile(reason)
+        case .proceed(let authorization):
+            releaseAuthorization = authorization
+            supportConfidence = authorization.confidence
+            appendResolvedProfile(identity: identity, profile: profile)
+            if connectionIntent == .pairing {
+                completeReadOnlyPreflight()
+            } else {
+                beginDD21Preflight()
+            }
+        }
+    }
+
+    func appendResolvedProfile(identity: SonyCameraIdentity, profile: SonyLocationProfile) {
         appendLog(
             "Resolved model=\(identity.normalizedModel) firmware=\(identity.firmware ?? "unknown") "
                 + "protocol=\(identity.protocolVersion.map(String.init) ?? "unknown") "
-                + "profile=\(profile.kind.rawValue) confidence=\(supportConfidence.rawValue)"
+                + "profile=\(profile.kind.rawValue) confidence=\(supportConfidence.rawValue) "
+                + "distribution=\(releasePolicy.mode)"
         )
+    }
 
-        guard profile.isExecutable, supportConfidence != .unsupported else {
-            rejectUnsupportedProfile(profile.reason)
-            return
+    func beginDD21Preflight() {
+        guard let authorization = releaseAuthorization else { return }
+        state = .discovering
+        startConnectionStageTimeout(.preparing)
+        enqueueRead(name: "DD21 preflight", uuid: SonyProtocol.locationConfigReadUUID, required: true) {
+            [weak self] data in
+            guard let self else { return }
+            let mode = try SonyLocationCapabilityResolver.parseDD21(data)
+            try self.releasePolicy.validateDD21(mode, authorization: authorization)
+            self.dd21ConfigHex = mode.valueHex
+            self.includeTimezone = mode.includeTimezone
+            self.packetSize = mode.packetSize
+            self.appendLog("DD21 preflight validated; packetSize=\(mode.packetSize)")
         }
-        if supportConfidence != .verified {
+        onQueueEmpty = { [weak self] in
+            self?.completeReadOnlyPreflight()
+        }
+        runNextOperationIfNeeded()
+    }
+
+    func completeReadOnlyPreflight() {
+        guard let authorization = releaseAuthorization else { return }
+        if authorization.requiresExperimentalApproval {
+            guard releasePolicy.allowsExperimentalApproval else {
+                rejectUnsupportedProfile("Experimental camera writes are unavailable in this build.")
+                return
+            }
             cancelConnectionStageTimeout()
             experimentalApprovalPending = true
             state = .awaitingApproval
@@ -511,7 +564,9 @@ final class CameraBLEManager: NSObject, ObservableObject {
     }
 
     func approveExperimentalProfile() {
-        guard experimentalApprovalPending,
+        guard releasePolicy.allowsExperimentalApproval,
+            experimentalApprovalPending,
+            releaseAuthorization?.requiresExperimentalApproval == true,
             let identity = currentIdentity,
             let profile = resolvedProfile,
             profile.isExecutable
@@ -599,10 +654,21 @@ final class CameraBLEManager: NSObject, ObservableObject {
     }
 
     func beginLocationSetup() {
-        guard !didStartLocationSetup, let profile = resolvedProfile else { return }
-        guard supportConfidence == .verified || sessionApprovalKey == expectedApprovalKey else {
+        guard !didStartLocationSetup,
+            let profile = resolvedProfile,
+            let authorization = releaseAuthorization
+        else { return }
+        guard !authorization.requiresExperimentalApproval || sessionApprovalKey == expectedApprovalKey else {
+            guard releasePolicy.allowsExperimentalApproval else {
+                rejectUnsupportedProfile("Experimental camera writes are unavailable in this build.")
+                return
+            }
             experimentalApprovalPending = true
             state = .awaitingApproval
+            return
+        }
+        guard packetSize != nil else {
+            rejectUnsupportedProfile("DD21 preflight did not produce a supported packet size.")
             return
         }
         didStartLocationSetup = true
@@ -614,12 +680,7 @@ final class CameraBLEManager: NSObject, ObservableObject {
             self?.enqueue(action)
         }
         onQueueEmpty = { [weak self] in
-            guard let self else { return }
-            guard self.packetSize != nil else {
-                self.fail("DD21 negotiation did not produce a supported packet size")
-                return
-            }
-            self.startSendingLocations()
+            self?.startSendingLocations()
         }
         runNextOperationIfNeeded()
     }

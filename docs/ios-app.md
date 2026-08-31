@@ -14,7 +14,7 @@ The home screen is organized around shooting readiness rather than BLE protocol 
 2. Tap **Start Geotagging**.
 3. Grant location access when iOS asks. Camera GPS Link does not start the camera write flow before usable permission is available.
 4. Follow the visible stages: looking for the camera, connecting, identity/profile discovery, preparing location, and sending the first location.
-5. If the exact model/firmware/protocol/profile is unverified, review **Experimental Camera Profile** and choose Continue or Cancel. Cancel performs no subscription or application write.
+5. Development builds may show **Experimental Camera Profile** only after read-only identity, descriptor, and strict DD21 preflight; Cancel performs no subscription or application write. Qualification and public Release builds never offer this override.
 6. Wait for **Ready to Geotag** before taking photos that need location data.
 
 **Ready to Geotag** appears only after the camera has successfully received at least one location packet in the current session. The Readiness group separately reports the camera, iPhone location, and last successful camera update.
@@ -33,7 +33,9 @@ Open **Link Settings** from the home screen. Changes are staged until **Apply**;
 ### Connection Availability
 
 - **While App Is Open** — runs only while Camera GPS Link is open.
-- **Continue in Background** — keeps location and remembered-camera reconnect behavior active when iOS permits it. This requires Always Location permission for reliable background updates.
+- **Continue in Background** — available only in development and qualification builds while physical background qualification remains pending. It keeps location and remembered-camera reconnect behavior active when iOS permits it and requires Always Location permission.
+
+The public Release build hides **Continue in Background**, migrates a stale enabled preference to foreground-only, and enforces the same restriction in the location and BLE service layers.
 
 ### Location Updates
 
@@ -73,13 +75,13 @@ Diagnostic logs can include recent coordinates. Review the warning and log conte
 
 The app resolves behavior from complete Sony CC/DD/EE service discovery and required characteristic properties:
 
-- **Modern:** protocol `>=65`, DD11/DD21, and write-with-response DD30/DD31. After approval it optionally subscribes DD01, writes DD30 then DD31, optionally reads DD32/DD33, strictly validates DD21, then sends DD11.
-- **Legacy:** known protocol `<65`, DD11/DD21, and both DD30/DD31 absent. It validates DD21 and sends DD11 without controls or notifications.
-- **Unsupported:** missing/wrong properties, partial controls, inconsistent protocol shape, unknown-version legacy shape, or a blocked registry identity. It performs no subscription or application write.
+- **Modern:** protocol `>=65`, DD11/DD21, and write-with-response DD30/DD31. Read-only preflight strictly validates DD21 before any approval, notification subscription, or write. An authorized session then optionally subscribes DD01, writes DD30 then DD31, optionally reads DD32/DD33, and sends DD11.
+- **Legacy:** known protocol `<65`, DD11/DD21, and both DD30/DD31 absent. Read-only preflight validates DD21 before an authorized session sends DD11 without controls or notifications.
+- **Unsupported:** missing/wrong properties, partial controls, inconsistent protocol shape, unknown-version legacy shape, a blocked registry identity, or a distribution-policy mismatch. It performs no subscription or application write.
 
-Strict DD21 accepts only evidence-backed 6/7-byte framing and controls the 95- or 91-byte DD11 packet. Failure, cancellation, and timeout compensate every dispatched, possibly applied modern control in DD31-then-DD30 order. Cleanup cannot be disabled.
+Strict DD21 accepts only evidence-backed 6/7-byte framing and controls the 95- or 91-byte DD11 packet. Qualification and public Release entries may require one exact packet size. Failure, cancellation, and timeout compensate every dispatched, possibly applied modern control in DD31-then-DD30 order. Cleanup cannot be disabled.
 
-Ordinary and experimental location sessions never send EE01. Diagnostics exposes **Initialize Camera Pairing** as a separate confirmed action after the active location session is stopped; it performs fresh identity/profile discovery and requires experimental approval when applicable before showing the final EE01 confirmation. The camera must be explicitly on its pairing screen.
+Ordinary and experimental location sessions never send EE01. Diagnostics exposes **Initialize Camera Pairing** as a separate confirmed action after the active location session is stopped. It performs fresh identity/profile/descriptor discovery and applies the same distribution policy before showing the final EE01 confirmation. Only development builds may require and accept an experimental pairing approval. The camera must be explicitly on its pairing screen.
 
 ## Build and test
 
@@ -96,6 +98,8 @@ just ios-smoke
 just ios-typecheck
 just ios-unit-test
 just ios-ui-test
+just ios-build-release-nosign
+just ios-build-qualification-nosign
 just ios-test
 ```
 
@@ -123,6 +127,6 @@ A physical iPhone is still required to validate real CoreBluetooth behavior, bac
 
 - The exact A7C II baseline is historical evidence only; runtime confidence remains experimental until the external Python evidence is current and a separately authorized post-refactor iOS EXIF regression passes.
 - A7 III, A7 IV, A6700, A7R V, A7S III, A1, ZV-E1, and ZV-E10 II remain unverified until their exact rows have independent evidence.
-- Background execution is opportunistic and cannot guarantee a fresh location immediately before every shutter release.
+- Public Release background operation is disabled until physical qualification passes. Development and qualification background execution remains opportunistic and cannot guarantee a fresh location immediately before every shutter release.
 - The app updates the camera’s cached location for new photos; it does not modify existing images.
 - Real BLE and background wake behavior cannot be fully simulated by XCUITest.

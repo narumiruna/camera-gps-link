@@ -6,6 +6,10 @@ enum ConnectionAvailability: String, CaseIterable, Identifiable {
 
     var id: Self { self }
 
+    static func availableOptions(allowsBackground: Bool) -> [ConnectionAvailability] {
+        allowsBackground ? allCases : [.whileAppIsOpen]
+    }
+
     var label: String {
         switch self {
         case .whileAppIsOpen:
@@ -52,6 +56,13 @@ struct LinkSettings: Equatable {
     var summary: String {
         let availability = backgroundLinkEnabled ? "Background" : "While Open"
         return "\(availability) · \(locationUpdates.label)"
+    }
+
+    func restrictingBackground(to isAllowed: Bool) -> LinkSettings {
+        guard !isAllowed, backgroundLinkEnabled else { return self }
+        var restricted = self
+        restricted.connectionAvailability = .whileAppIsOpen
+        return restricted
     }
 
     var effectPreview: String {
@@ -103,13 +114,22 @@ protocol LinkSettingsStoring {
 
 struct UserDefaultsLinkSettingsStore: LinkSettingsStoring {
     let defaults: UserDefaults
+    let allowsBackground: Bool
 
-    init(defaults: UserDefaults = .standard) {
+    init(
+        defaults: UserDefaults = .standard,
+        allowsBackground: Bool = SonyReleasePolicy.current.allowsBackground
+    ) {
         self.defaults = defaults
+        self.allowsBackground = allowsBackground
     }
 
     func load() throws -> LinkSettings {
-        let backgroundEnabled = defaults.object(forKey: LinkSettingsKeys.backgroundLinkEnabled) as? Bool ?? false
+        let storedBackground = defaults.object(forKey: LinkSettingsKeys.backgroundLinkEnabled) as? Bool ?? false
+        let backgroundEnabled = storedBackground && allowsBackground
+        if storedBackground && !allowsBackground {
+            defaults.set(false, forKey: LinkSettingsKeys.backgroundLinkEnabled)
+        }
         let lowPowerEnabled = defaults.object(forKey: LinkSettingsKeys.lowPowerModeEnabled) as? Bool ?? true
         return LinkSettings(
             connectionAvailability: backgroundEnabled ? .continueInBackground : .whileAppIsOpen,
@@ -118,7 +138,8 @@ struct UserDefaultsLinkSettingsStore: LinkSettingsStoring {
     }
 
     func save(_ settings: LinkSettings) throws {
-        defaults.set(settings.backgroundLinkEnabled, forKey: LinkSettingsKeys.backgroundLinkEnabled)
-        defaults.set(settings.lowPowerModeEnabled, forKey: LinkSettingsKeys.lowPowerModeEnabled)
+        let restricted = settings.restrictingBackground(to: allowsBackground)
+        defaults.set(restricted.backgroundLinkEnabled, forKey: LinkSettingsKeys.backgroundLinkEnabled)
+        defaults.set(restricted.lowPowerModeEnabled, forKey: LinkSettingsKeys.lowPowerModeEnabled)
     }
 }

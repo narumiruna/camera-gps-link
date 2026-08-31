@@ -32,12 +32,12 @@ ios-open:
 
 # Run the Swift DD11 protocol and location policy smoke test
 ios-smoke:
-    swiftc CameraGPSLink/SonyProtocol.swift CameraGPSLink/SonyLocationProfile.swift CameraGPSLink/SonyLocationSessionPlan.swift CameraGPSLink/LocationProvider.swift CameraGPSLinkTests/main.swift -o {{ios_smoke}}
+    swiftc -D DEBUG CameraGPSLink/SonyProtocol.swift CameraGPSLink/SonyLocationProfile.swift CameraGPSLink/SonyReleasePolicy.swift CameraGPSLink/SonyLocationSessionPlan.swift CameraGPSLink/LocationProvider.swift CameraGPSLinkTests/main.swift -o {{ios_smoke}}
     {{ios_smoke}}
 
 # Type check all Swift sources
 ios-typecheck:
-    swiftc -typecheck CameraGPSLink/*.swift
+    swiftc -D DEBUG -typecheck CameraGPSLink/*.swift
 
 # Lint iOS plist/project XML files
 ios-lint-project:
@@ -51,6 +51,14 @@ ios-build-sim:
 # Compile the iOS target for device without code signing
 ios-build-device-nosign:
     DEVELOPER_DIR={{xcode_dev_dir}} xcodebuild -project {{ios_project}} -target {{ios_target}} -sdk iphoneos -configuration Debug CODE_SIGNING_ALLOWED=NO build
+
+# Compile the public Release policy for device without code signing
+ios-build-release-nosign:
+    DEVELOPER_DIR={{xcode_dev_dir}} xcodebuild -project {{ios_project}} -target {{ios_target}} -sdk iphoneos -configuration Release CODE_SIGNING_ALLOWED=NO build
+
+# Compile the exact A7C II qualification policy with Release optimization and no code signing
+ios-build-qualification-nosign:
+    DEVELOPER_DIR={{xcode_dev_dir}} xcodebuild -project {{ios_project}} -target {{ios_target}} -sdk iphoneos -configuration Release SWIFT_ACTIVE_COMPILATION_CONDITIONS=QUALIFICATION CODE_SIGNING_ALLOWED=NO build
 
 # Create a project-dedicated simulator so concurrent XCUITest suites cannot steal focus
 ios-test-prepare:
@@ -81,7 +89,7 @@ ios-test:
     just ios-ui-test
 
 # Run all iOS compile/smoke/test checks
-ios-check: ios-smoke ios-typecheck ios-lint-project ios-build-sim ios-build-device-nosign ios-test
+ios-check: ios-smoke ios-typecheck ios-lint-project ios-build-sim ios-build-device-nosign ios-build-release-nosign ios-build-qualification-nosign ios-test
 
 # Show Xcode destinations for the app scheme
 ios-destinations:

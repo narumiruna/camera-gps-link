@@ -21,6 +21,7 @@
             var permission: LocationPermission = .whenInUse
             var location: CLLocation?
             var persistenceFails = false
+            var releasePolicy = SonyReleasePolicy.current
 
             switch scenario {
             case "not-connected", "empty-diagnostics":
@@ -80,6 +81,19 @@
                 location = fixtureLocation(now: now)
             case "settings-failure":
                 persistenceFails = true
+            case "public-release-settings":
+                releasePolicy = SonyReleasePolicy(mode: .publicRelease)
+            case "public-release-experimental":
+                releasePolicy = SonyReleasePolicy(mode: .publicRelease)
+                camera.state = .awaitingApproval
+                camera.discoveredCameraName = "ILCE-7M4"
+                camera.targetName = "ILCE-7M4"
+                camera.firmware = "4.00"
+                camera.profile = .modern
+                camera.confidence = .experimental
+                camera.experimentalApprovalPending = true
+                camera.lastError = "This camera identity is not supported by this public release."
+                location = fixtureLocation(now: now)
             case "dense-diagnostics":
                 for index in 0..<140 {
                     diagnostics.append("log \(index)")
@@ -105,7 +119,8 @@
                 settingsStore: store,
                 diagnosticsStore: diagnostics,
                 now: { now },
-                openSettings: {}
+                openSettings: {},
+                releasePolicy: releasePolicy
             )
         }
 

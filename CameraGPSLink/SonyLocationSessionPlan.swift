@@ -22,17 +22,7 @@ struct SonyLocationSessionPlan: Equatable {
             return SonyLocationSessionPlan(profile: .unsupported, setup: [])
         }
         guard profile.kind == .modern else {
-            return SonyLocationSessionPlan(
-                profile: .legacy,
-                setup: [
-                    SonyLocationAction(
-                        name: "DD21 config",
-                        uuid: SonyProtocol.locationConfigReadUUID,
-                        kind: .read,
-                        required: true
-                    )
-                ]
-            )
+            return SonyLocationSessionPlan(profile: .legacy, setup: [])
         }
 
         var setup: [SonyLocationAction] = []
@@ -82,14 +72,6 @@ struct SonyLocationSessionPlan: Equatable {
                 )
             )
         }
-        setup.append(
-            SonyLocationAction(
-                name: "DD21 config",
-                uuid: SonyProtocol.locationConfigReadUUID,
-                kind: .read,
-                required: true
-            )
-        )
         return SonyLocationSessionPlan(profile: .modern, setup: setup)
     }
 }
