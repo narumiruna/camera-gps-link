@@ -2,7 +2,9 @@
 
 Camera GPS Link sends the iPhone’s current location to a supported camera over Bluetooth so newly captured photos can use the camera’s latest cached GPS fix.
 
-Historical verified baseline: Sony A7C II / `ILCE-7CM2` firmware `2.01`, protocol `101`, modern 95-byte profile. Other identities are unverified until discovery; only an executable discovered shape is labeled experimental. See [`../../docs/sony-camera-compatibility.md`](../../docs/sony-camera-compatibility.md).
+Historical verified baseline: Sony A7C II / `ILCE-7CM2` firmware `2.01`, protocol `101`, modern 95-byte profile.
+The first public iOS App Store release will support only this camera and will not expose experimental writes for other models.
+See the accepted [`A7C II-only iOS App Store release plan`](../../docs/plans/2026-08-31_ios-a7c2-only-app-store-release-plan.md) and the current [`compatibility matrix`](../../docs/sony-camera-compatibility.md).
 
 ## Geotagging workflow
 

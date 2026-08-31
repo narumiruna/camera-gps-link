@@ -1,6 +1,13 @@
 # Sony camera location compatibility
 
-Support is qualified by exact model, firmware, advertisement protocol version, and discovered BLE location profile. Matching a known GATT shape is **experimental**, not proof that a camera accepts GPS data. The current plan limits physical-camera qualification to A7C II: its row records the historical hardware baseline plus a passing post-refactor Python foreground write, with full promotion pending matching iOS GPS EXIF. Every other row remains an automated-fixture candidate with no physical test or promotion required.
+Support is qualified by exact model, firmware, advertisement protocol version, and discovered BLE location profile.
+Matching a known GATT shape is **experimental**, not proof that a camera accepts GPS data.
+The current plan limits physical-camera qualification to A7C II: its row records the historical hardware baseline plus a passing post-refactor Python foreground write, with full promotion pending matching iOS GPS EXIF.
+Every other row remains an automated-fixture candidate with no physical test or promotion required.
+
+The first public iOS App Store release is intentionally limited to Sony Alpha 7C II (`ILCE-7CM2`).
+Other model fixtures and research tools do not constitute public iOS support.
+See [`plans/2026-08-31_ios-a7c2-only-app-store-release-plan.md`](plans/2026-08-31_ios-a7c2-only-app-store-release-plan.md) for the accepted release decision and verification gates.
 
 | Model | Firmware | Advertisement version | Profile | DD21 / packet | Python foreground | iOS foreground | Background | Evidence |
 | --- | --- | ---: | --- | --- | --- | --- | --- | --- |

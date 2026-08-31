@@ -1,7 +1,9 @@
 # Camera GPS Link Support
 
 Camera GPS Link sends an iPhone's current location to a compatible camera over Bluetooth.
-The currently verified camera is the Sony Alpha 7C II (`ILCE-7CM2`).
+The public iOS release target is exclusively the Sony Alpha 7C II (`ILCE-7CM2`).
+Initial qualification is limited to firmware `2.01`, and the iOS support claim remains pre-release until its physical write and fresh-photo GPS EXIF verification pass.
+Other camera models are not supported by the public iOS release.
 
 ## Before Requesting Support
 
