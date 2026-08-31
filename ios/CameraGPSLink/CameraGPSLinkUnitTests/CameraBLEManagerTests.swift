@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import CameraGPSLink
 
 @MainActor
@@ -137,8 +138,10 @@ final class CameraBLEManagerPlanIntegrationTests: XCTestCase {
             identityStore: InMemoryIdentityStore()
         )
 
-        XCTAssertEqual(manager.expectedServiceUUID(for: SonyProtocol.locationDataWriteUUID), SonyProtocol.locationServiceUUID)
-        XCTAssertEqual(manager.expectedServiceUUID(for: SonyProtocol.cameraModelUUID), SonyProtocol.cameraControlServiceUUID)
+        XCTAssertEqual(
+            manager.expectedServiceUUID(for: SonyProtocol.locationDataWriteUUID), SonyProtocol.locationServiceUUID)
+        XCTAssertEqual(
+            manager.expectedServiceUUID(for: SonyProtocol.cameraModelUUID), SonyProtocol.cameraControlServiceUUID)
         XCTAssertEqual(manager.expectedServiceUUID(for: SonyProtocol.pairingInitUUID), SonyProtocol.pairingServiceUUID)
         XCTAssertNil(manager.expectedServiceUUID(for: "ff01"))
     }

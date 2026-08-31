@@ -68,7 +68,7 @@ struct LinkSettingsView: View {
             }
             .navigationTitle("Link Settings")
             #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
+                .navigationBarTitleDisplayMode(.inline)
             #endif
             .interactiveDismissDisabled(isApplying)
             .onKeyPress(.escape) {

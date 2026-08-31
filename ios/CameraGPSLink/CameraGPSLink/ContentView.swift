@@ -1,6 +1,7 @@
 import SwiftUI
+
 #if canImport(UIKit)
-import UIKit
+    import UIKit
 #endif
 
 struct ContentView: View {
@@ -32,13 +33,13 @@ struct ContentView: View {
 
     private func announce(_ phase: GeotaggingPhase) {
         #if canImport(UIKit)
-        guard UIAccessibility.isVoiceOverRunning else { return }
-        switch phase {
-        case .ready, .needsAttention, .stopped:
-            UIAccessibility.post(notification: .announcement, argument: appModel.viewState.title)
-        default:
-            break
-        }
+            guard UIAccessibility.isVoiceOverRunning else { return }
+            switch phase {
+            case .ready, .needsAttention, .stopped:
+                UIAccessibility.post(notification: .announcement, argument: appModel.viewState.title)
+            default:
+                break
+            }
         #endif
     }
 }

@@ -41,9 +41,9 @@ enum SonyProtocol {
 
         var errorDescription: String? {
             switch self {
-            case let .invalidLatitude(value):
+            case .invalidLatitude(let value):
                 "Latitude out of range: \(value)"
-            case let .invalidLongitude(value):
+            case .invalidLongitude(let value):
                 "Longitude out of range: \(value)"
             }
         }
@@ -75,10 +75,10 @@ enum SonyProtocol {
         timeZone: TimeZone = .current,
         includeTimezone: Bool = true
     ) throws -> Data {
-        guard (-90.0 ... 90.0).contains(latitude) else {
+        guard (-90.0...90.0).contains(latitude) else {
             throw ProtocolError.invalidLatitude(latitude)
         }
-        guard (-180.0 ... 180.0).contains(longitude) else {
+        guard (-180.0...180.0).contains(longitude) else {
             throw ProtocolError.invalidLongitude(longitude)
         }
 

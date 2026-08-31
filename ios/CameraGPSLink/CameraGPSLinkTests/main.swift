@@ -12,7 +12,9 @@ let info = SonyProtocol.parseAdvertisement(manufacturerData: advertisement)
 require(info?.isCamera == true, "Sony camera advertisement should be recognized")
 require(info?.protocolVersion == 0x65, "Protocol version should be 0x65")
 require(info?.requiresUnlock == true, "A7C II protocol version should require DD30/DD31")
-require(SonyProtocol.parseConfigRequiresTimezone(Data([0x06, 0x10, 0x00, 0x9C, 0x02, 0x00, 0x00])), "DD21 bit should enable timezone")
+require(
+    SonyProtocol.parseConfigRequiresTimezone(Data([0x06, 0x10, 0x00, 0x9C, 0x02, 0x00, 0x00])),
+    "DD21 bit should enable timezone")
 
 var calendar = Calendar(identifier: .gregorian)
 let packetTimeZone = TimeZone(secondsFromGMT: 3 * 3600)!

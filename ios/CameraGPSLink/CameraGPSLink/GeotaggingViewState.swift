@@ -20,8 +20,8 @@ enum LocationPermission: Equatable {
         case .authorizedAlways:
             self = .always
         #if os(iOS)
-        case .authorizedWhenInUse:
-            self = .whenInUse
+            case .authorizedWhenInUse:
+                self = .whenInUse
         #endif
         @unknown default:
             self = .unknown
@@ -128,7 +128,8 @@ struct GeotaggingViewState: Equatable {
         let content = content(for: phase, snapshot: snapshot, now: now)
         let primary = primaryAction(for: phase, snapshot: snapshot)
         let lastUpdate = relativeUpdate(snapshot.lastSentAt, now: now)
-        let needsBackgroundPermission = snapshot.backgroundEnabled
+        let needsBackgroundPermission =
+            snapshot.backgroundEnabled
             && snapshot.locationPermission != .always
             && snapshot.locationPermission.allowsForegroundLocation
 
@@ -140,8 +141,11 @@ struct GeotaggingViewState: Equatable {
             primaryAction: primary,
             primaryActionLabel: label(for: primary),
             secondaryAction: phase == .ready ? .sendNow : (phase == .approvalRequired ? .cancel : nil),
-            secondaryActionLabel: phase == .ready ? "Send Current Location" : (phase == .approvalRequired ? "Cancel" : nil),
-            showsProgress: [.requestingPermission, .searching, .connecting, .preparing, .sendingFirstLocation, .stopping].contains(phase),
+            secondaryActionLabel: phase == .ready
+                ? "Send Current Location" : (phase == .approvalRequired ? "Cancel" : nil),
+            showsProgress: [
+                .requestingPermission, .searching, .connecting, .preparing, .sendingFirstLocation, .stopping,
+            ].contains(phase),
             lastUpdateText: lastUpdate,
             notice: needsBackgroundPermission ? "Background Permission Needed" : nil,
             noticeAction: needsBackgroundPermission ? .requestBackgroundPermission : nil
@@ -156,8 +160,9 @@ struct GeotaggingViewState: Equatable {
             return .needsAttention
         }
         if snapshot.backgroundEnabled,
-           snapshot.pendingReconnectArmed,
-           snapshot.cameraState == .connecting || snapshot.cameraState == .scanning {
+            snapshot.pendingReconnectArmed,
+            snapshot.cameraState == .connecting || snapshot.cameraState == .scanning
+        {
             return .waitingInBackground
         }
         switch snapshot.cameraState {
@@ -222,27 +227,37 @@ struct GeotaggingViewState: Equatable {
                 snapshot.transientError ?? "This camera’s discovered location characteristics cannot be used safely."
             )
         case .waitingForLocation:
-            return ("Waiting for iPhone Location", "The camera is connected. Move to an open area if a GPS fix takes too long.")
+            return (
+                "Waiting for iPhone Location",
+                "The camera is connected. Move to an open area if a GPS fix takes too long."
+            )
         case .sendingFirstLocation:
             return ("Sending First Location…", "Wait for confirmation before taking geotagged photos.")
         case .ready:
             return ("Ready to Geotag", "New photos can use the latest location sent from this iPhone.")
         case .waitingInBackground:
-            return ("Waiting for Camera", "Camera GPS Link will reconnect when the remembered camera becomes available.")
+            return (
+                "Waiting for Camera", "Camera GPS Link will reconnect when the remembered camera becomes available."
+            )
         case .stopping:
             return ("Stopping…", "Closing the camera location link safely.")
         case .stopped:
             return ("Stopped", "Location updates are off. Start again whenever you are ready.")
         case .needsAttention:
             if snapshot.locationPermission == .denied || snapshot.locationPermission == .restricted {
-                return ("Location Access Needed", "Location access is off. Review permission in iOS Settings, then retry.")
+                return (
+                    "Location Access Needed", "Location access is off. Review permission in iOS Settings, then retry."
+                )
             }
             if snapshot.cameraState == .bluetoothUnavailable {
                 return ("Bluetooth Unavailable", "Turn on Bluetooth and keep Camera GPS Link open, then retry.")
             }
             if snapshot.cameraState == .linked, let lastSentAt = snapshot.lastSentAt,
-               now.timeIntervalSince(lastSentAt) > 5 * 60 {
-                return ("Location Update Delayed", "The camera’s last location is out of date. Send again or reconnect.")
+                now.timeIntervalSince(lastSentAt) > 5 * 60
+            {
+                return (
+                    "Location Update Delayed", "The camera’s last location is out of date. Send again or reconnect."
+                )
             }
             return ("Connection Needs Attention", "Check the camera and try connecting again.")
         }
@@ -296,7 +311,8 @@ struct GeotaggingViewState: Equatable {
 
     private static func readiness(for snapshot: GeotaggingSnapshot, lastUpdate: String) -> [ReadinessItem] {
         let cameraReady = snapshot.cameraState == .linked
-        let cameraDetail = cameraReady
+        let cameraDetail =
+            cameraReady
             ? "Connected · \(snapshot.cameraName ?? snapshot.targetName)"
             : cameraStatus(snapshot.cameraState)
         let locationReady = snapshot.hasLocation && snapshot.locationPermission.allowsForegroundLocation

@@ -33,6 +33,7 @@
 		F10000000000000000000002 /* SonyLocationSessionPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000002 /* SonyLocationSessionPlan.swift */; };
 		F10000000000000000000003 /* SonyCameraIdentityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000003 /* SonyCameraIdentityStore.swift */; };
 		F10000000000000000000004 /* CameraBLEManager+CoreBluetooth.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000004 /* CameraBLEManager+CoreBluetooth.swift */; };
+		F10000000000000000000005 /* CameraBLEManager+Operations.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000005 /* CameraBLEManager+Operations.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -83,6 +84,7 @@
 		F20000000000000000000002 /* SonyLocationSessionPlan.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SonyLocationSessionPlan.swift; sourceTree = "<group>"; };
 		F20000000000000000000003 /* SonyCameraIdentityStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SonyCameraIdentityStore.swift; sourceTree = "<group>"; };
 		F20000000000000000000004 /* CameraBLEManager+CoreBluetooth.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "CameraBLEManager+CoreBluetooth.swift"; sourceTree = "<group>"; };
+		F20000000000000000000005 /* CameraBLEManager+Operations.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "CameraBLEManager+Operations.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -165,6 +167,7 @@
 				F20000000000000000000002 /* SonyLocationSessionPlan.swift */,
 				F20000000000000000000003 /* SonyCameraIdentityStore.swift */,
 				F20000000000000000000004 /* CameraBLEManager+CoreBluetooth.swift */,
+				F20000000000000000000005 /* CameraBLEManager+Operations.swift */,
 			);
 			path = CameraGPSLink;
 			sourceTree = "<group>";
@@ -346,6 +349,7 @@
 				F10000000000000000000002 /* SonyLocationSessionPlan.swift in Sources */,
 				F10000000000000000000003 /* SonyCameraIdentityStore.swift in Sources */,
 				F10000000000000000000004 /* CameraBLEManager+CoreBluetooth.swift in Sources */,
+				F10000000000000000000005 /* CameraBLEManager+Operations.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

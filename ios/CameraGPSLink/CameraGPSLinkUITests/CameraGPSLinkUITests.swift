@@ -34,7 +34,7 @@ final class CameraGPSLinkUITests: XCTestCase {
         app.terminate()
         launch("timeout")
         XCTAssertTrue(app.staticTexts["Connection Needs Attention"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'timed out'" )).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'timed out'")).firstMatch.exists)
         app.buttons["Retry"].tap()
         XCTAssertTrue(app.staticTexts["Looking for Camera…"].waitForExistence(timeout: 2))
     }
@@ -152,7 +152,9 @@ final class CameraGPSLinkUITests: XCTestCase {
         selectSetting("Best Accuracy")
         app.buttons["settings-apply"].tap()
 
-        XCTAssertTrue(app.staticTexts["Changes couldn’t be applied. Your previous settings are still active."].waitForExistence(timeout: 2))
+        XCTAssertTrue(
+            app.staticTexts["Changes couldn’t be applied. Your previous settings are still active."].waitForExistence(
+                timeout: 2))
         app.buttons["settings-cancel"].tap()
         XCTAssertTrue(app.staticTexts["While Open · Battery Saver"].waitForExistence(timeout: 2))
     }
@@ -168,7 +170,8 @@ final class CameraGPSLinkUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Remembered peripheral"].exists)
         scrollUntilVisible(app.buttons["copy-diagnostics"])
         XCTAssertTrue(app.staticTexts["Mode"].exists)
-        XCTAssertTrue(app.staticTexts["Diagnostic logs may include recent coordinates. Review them before sharing."].exists)
+        XCTAssertTrue(
+            app.staticTexts["Diagnostic logs may include recent coordinates. Review them before sharing."].exists)
         XCTAssertTrue(app.buttons["copy-diagnostics"].exists)
         app.buttons["copy-diagnostics"].tap()
         XCTAssertTrue(app.buttons["Copied Diagnostic Log"].exists)
@@ -224,7 +227,9 @@ final class CameraGPSLinkUITests: XCTestCase {
     func testAccessibilityAuditAtLargestTextSize() throws {
         launch(
             "ready",
-            arguments: ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge"]
+            arguments: [
+                "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+            ]
         )
         XCTAssertTrue(app.staticTexts["Ready to Geotag"].waitForExistence(timeout: 5))
         try app.performAccessibilityAudit(

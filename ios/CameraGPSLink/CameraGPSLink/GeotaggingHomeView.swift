@@ -1,6 +1,7 @@
 import SwiftUI
+
 #if canImport(UIKit)
-import UIKit
+    import UIKit
 #endif
 
 struct GeotaggingHomeView<Diagnostics: View>: View {
@@ -238,22 +239,22 @@ struct GeotaggingHomeView<Diagnostics: View>: View {
 
 private var pageBackgroundColor: Color {
     #if canImport(UIKit)
-    Color(uiColor: .systemGroupedBackground)
+        Color(uiColor: .systemGroupedBackground)
     #else
-    Color.secondary.opacity(0.08)
+        Color.secondary.opacity(0.08)
     #endif
 }
 
 private var sectionBackgroundColor: Color {
     #if canImport(UIKit)
-    Color(uiColor: .secondarySystemGroupedBackground)
+        Color(uiColor: .secondarySystemGroupedBackground)
     #else
-    Color.primary.opacity(0.05)
+        Color.primary.opacity(0.05)
     #endif
 }
 
-private extension View {
-    func sectionSurface() -> some View {
+extension View {
+    fileprivate func sectionSurface() -> some View {
         padding(16)
             .background(sectionBackgroundColor, in: RoundedRectangle(cornerRadius: 16))
     }
