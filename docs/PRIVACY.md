@@ -50,5 +50,5 @@ Updates to this policy will be published on this page with a revised effective d
 
 ## Contact
 
-For privacy questions, open an issue in the [Camera GPS Link support repository](https://github.com/narumiruna/sony-geotag/issues).
+For privacy questions, open an issue in the [Camera GPS Link support repository](https://github.com/narumiruna/camera-gps-link/issues).
 Please do not include precise coordinates or other sensitive information in a public issue.

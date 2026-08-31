@@ -17,7 +17,7 @@ Background operation depends on iOS permissions and system scheduling and cannot
 
 ## Contact
 
-Search existing reports or [open a support issue](https://github.com/narumiruna/sony-geotag/issues).
+Search existing reports or [open a support issue](https://github.com/narumiruna/camera-gps-link/issues).
 Include the iPhone model, iOS version, camera model, and the visible app status.
 
 The app's diagnostic log can help investigate connection problems, but it may contain recent coordinates.
