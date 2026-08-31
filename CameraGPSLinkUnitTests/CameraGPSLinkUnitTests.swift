@@ -815,12 +815,32 @@ final class CameraGPSLinkAppModelTests: XCTestCase {
         XCTAssertEqual(location.alwaysRequests, 1)
     }
 
+    func testPublicReleasePropagatesBackgroundSceneWithoutResuming() {
+        let settings = LinkSettings(connectionAvailability: .continueInBackground, locationUpdates: .batterySaver)
+        let camera = FakeCameraService()
+        camera.snapshot.activeLinkIntent = true
+        let location = FakeLocationService(permission: .always)
+        let model = makeModel(
+            camera: camera,
+            location: location,
+            settings: settings,
+            releasePolicy: SonyReleasePolicy(mode: .publicRelease)
+        )
+
+        model.handleScenePhase(isForeground: false)
+
+        XCTAssertFalse(model.settings.backgroundLinkEnabled)
+        XCTAssertEqual(camera.scenePhases, [false])
+        XCTAssertEqual(camera.backgroundResumes, 0)
+    }
+
     private func makeModel(
         camera: FakeCameraService,
         location: FakeLocationService,
         settings: LinkSettings = .default,
         settingsStore: FakeSettingsStore? = nil,
-        now: @escaping () -> Date = { Date(timeIntervalSince1970: 10_000) }
+        now: @escaping () -> Date = { Date(timeIntervalSince1970: 10_000) },
+        releasePolicy: SonyReleasePolicy = .current
     ) -> CameraGPSLinkAppModel {
         CameraGPSLinkAppModel(
             cameraService: camera,
@@ -828,7 +848,8 @@ final class CameraGPSLinkAppModelTests: XCTestCase {
             settingsStore: settingsStore ?? FakeSettingsStore(settings: settings),
             diagnosticsStore: DiagnosticsLogStore(),
             now: now,
-            openSettings: {}
+            openSettings: {},
+            releasePolicy: releasePolicy
         )
     }
 }
@@ -840,12 +861,14 @@ private final class FakeCameraService: CameraLinkServicing {
     var configurations: [LinkSettings] = []
     var foregroundStarts = 0
     var backgroundResumes = 0
+    var scenePhases: [Bool] = []
     var cancels = 0
     var stops = 0
     var sends = 0
     var locationProvider: (() -> CLLocation?)?
 
     func configure(settings: LinkSettings) { configurations.append(settings) }
+    func handleScenePhase(isForeground: Bool) { scenePhases.append(isForeground) }
     func setLocationProvider(_ provider: @escaping () -> CLLocation?) { locationProvider = provider }
     func startForegroundLink() { foregroundStarts += 1 }
     func resumeBackgroundLink() { backgroundResumes += 1 }

@@ -50,6 +50,7 @@ final class CameraBLEManager: NSObject, ObservableObject {
     var connectionIntent: CameraConnectionIntent = .location
     var attemptOrigin: CameraAttemptOrigin = .none
     var activeSessionRequested = false
+    var isForeground = true
     var userLinkIntentActive = UserDefaults.standard.bool(forKey: CameraBLEDefaults.activeLinkIntent)
     var cancelAfterCurrentOperation = false
     var compensationErrors: [String] = []
@@ -147,6 +148,10 @@ final class CameraBLEManager: NSObject, ObservableObject {
         diagnosticsStore.lines
     }
 
+    var permitsLocationWrites: Bool {
+        isForeground || backgroundLinkEnabled
+    }
+
     func configure(backgroundLinkEnabled: Bool, lowPowerModeEnabled: Bool) {
         let effectiveBackgroundLinkEnabled = backgroundLinkEnabled && releasePolicy.allowsBackground
         let didChange =
@@ -172,6 +177,19 @@ final class CameraBLEManager: NSObject, ObservableObject {
         if !effectiveBackgroundLinkEnabled {
             disarmPendingReconnect()
         }
+    }
+
+    func handleScenePhase(isForeground: Bool) {
+        self.isForeground = isForeground
+        guard !isForeground, !backgroundLinkEnabled else { return }
+        stopTimer()
+        guard
+            [
+                .scanning, .connecting, .discovering, .awaitingApproval, .enablingLocation, .linked, .pairing,
+            ].contains(state)
+        else { return }
+        appendLog("Foreground-only location link stopping because the app entered background")
+        stopLink()
     }
 
     func setLocationProvider(_ locationProvider: @escaping () -> CLLocation?) {
@@ -336,6 +354,10 @@ final class CameraBLEManager: NSObject, ObservableObject {
         else {
             return false
         }
+        guard hasValidatedRememberedProtocolContext(peripheralID: rememberedPeripheralID) else {
+            appendLog("Remembered camera lacks validated protocol context; using advertisement scan")
+            return false
+        }
         let peripherals = centralManager.retrievePeripherals(withIdentifiers: [identifier])
         guard let rememberedPeripheral = peripherals.first else {
             appendLog("Remembered camera not available for direct reconnect")
@@ -370,6 +392,11 @@ final class CameraBLEManager: NSObject, ObservableObject {
             centralManager.connect(rememberedPeripheral, options: connectOptions)
         }
         return true
+    }
+
+    func hasValidatedRememberedProtocolContext(peripheralID: String) -> Bool {
+        guard let record = identityStore.load() else { return false }
+        return record.peripheralID == peripheralID && record.identity.protocolVersion != nil
     }
 
     func disarmPendingReconnect() {

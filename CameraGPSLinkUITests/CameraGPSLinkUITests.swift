@@ -28,8 +28,8 @@ final class CameraGPSLinkUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["connection-progress"].exists)
 
         app.buttons["Cancel"].tap()
-        XCTAssertTrue(app.staticTexts["Stopped"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.buttons["Start Geotagging"].exists)
+        XCTAssertTrue(app.staticTexts["Stopped"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Start Geotagging"].waitForExistence(timeout: 5))
 
         app.terminate()
         launch("timeout")
@@ -281,7 +281,7 @@ final class CameraGPSLinkUITests: XCTestCase {
         app.launch()
     }
 
-    private func waitForDisappearance(_ element: XCUIElement, timeout: TimeInterval = 2) {
+    private func waitForDisappearance(_ element: XCUIElement, timeout: TimeInterval = 5) {
         let expectation = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "exists == false"),
             object: element

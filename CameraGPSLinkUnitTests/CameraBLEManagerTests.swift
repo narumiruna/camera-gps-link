@@ -1,3 +1,4 @@
+import CoreLocation
 import XCTest
 
 @testable import CameraGPSLink
@@ -214,6 +215,94 @@ final class CameraBLEManagerPlanIntegrationTests: XCTestCase {
         XCTAssertTrue(manager.manualStopRequested)
         XCTAssertFalse(manager.userLinkIntentActive)
         XCTAssertEqual(manager.attemptOrigin, .none)
+    }
+
+    func testDD21ValidationFailureHonorsPendingCancellation() {
+        let manager = CameraBLEManager(
+            diagnosticsStore: DiagnosticsLogStore(),
+            timeoutPolicy: ForegroundConnectionTimeoutPolicy(),
+            timeoutScheduler: .live,
+            identityStore: InMemoryIdentityStore()
+        )
+        manager.pendingOperation = .read(
+            name: "DD21 preflight",
+            uuid: manager.normalized(SonyProtocol.locationConfigReadUUID),
+            required: true,
+            onValue: nil
+        )
+        manager.cancelAfterCurrentOperation = true
+        manager.state = .discovering
+
+        manager.handleDD21PreflightValidationFailure("malformed fixture")
+
+        XCTAssertEqual(manager.state, .stopped)
+        XCTAssertFalse(manager.cancelAfterCurrentOperation)
+        XCTAssertNil(manager.lastError)
+    }
+
+    func testDirectReconnectRequiresMatchingStoredProtocolContext() {
+        let store = InMemoryIdentityStore()
+        let manager = CameraBLEManager(
+            diagnosticsStore: DiagnosticsLogStore(),
+            timeoutPolicy: ForegroundConnectionTimeoutPolicy(),
+            timeoutScheduler: .live,
+            identityStore: store
+        )
+        let peripheralID = UUID().uuidString
+        let descriptors: [SonyGattDescriptor] = []
+
+        XCTAssertFalse(manager.hasValidatedRememberedProtocolContext(peripheralID: peripheralID))
+
+        store.record = SonyValidatedIdentityRecord(
+            peripheralID: peripheralID,
+            identity: SonyCameraIdentity(model: "ILCE-7CM2", firmware: "2.01", protocolVersion: nil),
+            profile: .modern,
+            descriptorFingerprint: SonyLocationCapabilityResolver.descriptorFingerprint(descriptors)
+        )
+        XCTAssertFalse(manager.hasValidatedRememberedProtocolContext(peripheralID: peripheralID))
+
+        store.record = SonyValidatedIdentityRecord(
+            peripheralID: peripheralID,
+            identity: SonyCameraIdentity(model: "ILCE-7CM2", firmware: "2.01", protocolVersion: 101),
+            profile: .modern,
+            descriptorFingerprint: SonyLocationCapabilityResolver.descriptorFingerprint(descriptors)
+        )
+        XCTAssertTrue(manager.hasValidatedRememberedProtocolContext(peripheralID: peripheralID))
+        XCTAssertFalse(manager.hasValidatedRememberedProtocolContext(peripheralID: UUID().uuidString))
+    }
+
+    func testForegroundOnlyManagerStopsAndBlocksDD11InBackground() {
+        let manager = CameraBLEManager(
+            diagnosticsStore: DiagnosticsLogStore(),
+            timeoutPolicy: ForegroundConnectionTimeoutPolicy(),
+            timeoutScheduler: .live,
+            identityStore: InMemoryIdentityStore(),
+            releasePolicy: SonyReleasePolicy(mode: .publicRelease)
+        )
+        manager.configure(backgroundLinkEnabled: true, lowPowerModeEnabled: true)
+        manager.state = .linked
+        manager.activeSessionRequested = true
+        manager.setUserLinkIntent(active: true)
+
+        manager.handleScenePhase(isForeground: false)
+
+        XCTAssertEqual(manager.state, .stopped)
+        XCTAssertFalse(manager.permitsLocationWrites)
+        XCTAssertFalse(manager.userLinkIntentActive)
+        XCTAssertNil(manager.sendTimer)
+
+        manager.state = .linked
+        manager.setLocationProvider {
+            CLLocation(
+                coordinate: CLLocationCoordinate2D(latitude: 25.03, longitude: 121.56),
+                altitude: 0,
+                horizontalAccuracy: 5,
+                verticalAccuracy: 5,
+                timestamp: Date()
+            )
+        }
+        manager.sendLocationIfDue(force: true)
+        XCTAssertTrue(manager.sanitizedOperationOrder.isEmpty)
     }
 
     func testNewSessionClearsVolatileIdentityAndApprovalContext() {

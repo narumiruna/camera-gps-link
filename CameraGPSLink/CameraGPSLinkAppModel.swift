@@ -45,6 +45,7 @@ protocol CameraLinkServicing: AnyObject {
     var snapshot: CameraServiceSnapshot { get }
 
     func configure(settings: LinkSettings)
+    func handleScenePhase(isForeground: Bool)
     func setLocationProvider(_ provider: @escaping () -> CLLocation?)
     func startForegroundLink()
     func resumeBackgroundLink()
@@ -117,6 +118,10 @@ final class CameraBLEServiceAdapter: CameraLinkServicing {
             backgroundLinkEnabled: settings.backgroundLinkEnabled,
             lowPowerModeEnabled: settings.lowPowerModeEnabled
         )
+    }
+
+    func handleScenePhase(isForeground: Bool) {
+        manager.handleScenePhase(isForeground: isForeground)
     }
 
     func setLocationProvider(_ provider: @escaping () -> CLLocation?) {
@@ -349,6 +354,7 @@ final class CameraGPSLinkAppModel: ObservableObject {
         lastHandledForeground = isForeground
         self.isForeground = isForeground
         locationService.configure(settings: settings, isForeground: isForeground)
+        cameraService.handleScenePhase(isForeground: isForeground)
 
         if settings.backgroundLinkEnabled, linkRequested {
             if locationService.snapshot.permission.allowsForegroundLocation {
@@ -640,7 +646,11 @@ final class CameraGPSLinkAppModel: ObservableObject {
 
             isForeground = false
             locationService.configure(settings: settings, isForeground: false)
-            if linkRequested, locationService.snapshot.permission == .always {
+            cameraService.handleScenePhase(isForeground: false)
+            if settings.backgroundLinkEnabled,
+                linkRequested,
+                locationService.snapshot.permission == .always
+            {
                 locationService.startUpdating()
                 cameraService.resumeBackgroundLink()
                 cameraService.sendLocationIfDue()

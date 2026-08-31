@@ -299,11 +299,7 @@ extension CameraBLEManager: CBPeripheralDelegate {
                 try onValue?(data)
             } catch {
                 if name == "DD21 preflight" {
-                    pendingOperation = nil
-                    stopOperationTimeout()
-                    operationQueue.removeAll()
-                    onQueueEmpty = nil
-                    rejectUnsupportedProfile(error.localizedDescription)
+                    handleDD21PreflightValidationFailure(error.localizedDescription)
                 } else {
                     completeOperation(name: name, error: error.localizedDescription, required: required)
                 }

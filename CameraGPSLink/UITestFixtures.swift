@@ -151,6 +151,8 @@
             snapshot.updateInterval = settings.lowPowerModeEnabled ? 120 : 30
         }
 
+        func handleScenePhase(isForeground: Bool) {}
+
         func setLocationProvider(_ provider: @escaping () -> CLLocation?) {
             locationProvider = provider
         }
