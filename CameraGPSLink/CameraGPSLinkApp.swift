@@ -13,13 +13,19 @@ struct CameraGPSLinkApp: App {
         WindowGroup {
             ContentView(appModel: appModel)
                 .onAppear {
-                    appModel.handleScenePhase(isForeground: true)
+                    appModel.handleScenePhase(.active)
                 }
                 .onChange(of: scenePhase) { _, newPhase in
-                    let foreground = newPhase == .active
-                    appModel.handleScenePhase(isForeground: foreground)
-                    if !foreground {
+                    switch newPhase {
+                    case .active:
+                        appModel.handleScenePhase(.active)
+                    case .inactive:
+                        appModel.handleScenePhase(.inactive)
+                    case .background:
+                        appModel.handleScenePhase(.background)
                         appModel.scheduleBackgroundRefresh()
+                    @unknown default:
+                        appModel.handleScenePhase(.inactive)
                     }
                 }
         }

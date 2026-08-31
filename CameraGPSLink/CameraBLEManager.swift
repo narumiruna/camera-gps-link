@@ -44,6 +44,8 @@ final class CameraBLEManager: NSObject, ObservableObject {
     var pendingCharacteristicServices: Set<String> = []
     var didCompleteIdentityDiscovery = false
     var currentIdentity: SonyCameraIdentity?
+    var rejectedPeripheralIDs: Set<UUID> = []
+    var resumeScanAfterCandidateRejection = false
     var releaseAuthorization: SonyReleaseAuthorization?
     var sessionApprovalKey: String?
     var acquisition = SonyLocationAcquisition()
@@ -308,6 +310,8 @@ final class CameraBLEManager: NSObject, ObservableObject {
         timedOutCallbackDebt.removeAll()
         didCompleteIdentityDiscovery = false
         currentIdentity = nil
+        rejectedPeripheralIDs.removeAll()
+        resumeScanAfterCandidateRejection = false
         releaseAuthorization = nil
         sessionApprovalKey = nil
         acquisition = SonyLocationAcquisition()
@@ -526,10 +530,14 @@ final class CameraBLEManager: NSObject, ObservableObject {
             descriptors: descriptors,
             genericCompatibility: compatibility
         ) {
-        case .unsupported(let reason):
+        case .unsupported(let rejection):
             supportConfidence = .unsupported
             appendResolvedProfile(identity: identity, profile: profile)
-            rejectUnsupportedProfile(reason)
+            if rejection.shouldContinueScanning, peripheral != nil {
+                skipCurrentCandidateAndContinueScanning(rejection.message)
+            } else {
+                rejectUnsupportedProfile(rejection.message)
+            }
         case .proceed(let authorization):
             releaseAuthorization = authorization
             supportConfidence = authorization.confidence

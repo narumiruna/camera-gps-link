@@ -815,7 +815,7 @@ final class CameraGPSLinkAppModelTests: XCTestCase {
         XCTAssertEqual(location.alwaysRequests, 1)
     }
 
-    func testPublicReleasePropagatesBackgroundSceneWithoutResuming() {
+    func testPublicReleaseKeepsInactiveSceneForegroundAndStopsOnlyInBackground() {
         let settings = LinkSettings(connectionAvailability: .continueInBackground, locationUpdates: .batterySaver)
         let camera = FakeCameraService()
         camera.snapshot.activeLinkIntent = true
@@ -827,10 +827,13 @@ final class CameraGPSLinkAppModelTests: XCTestCase {
             releasePolicy: SonyReleasePolicy(mode: .publicRelease)
         )
 
-        model.handleScenePhase(isForeground: false)
+        model.handleScenePhase(.inactive)
+        XCTAssertEqual(camera.scenePhases, [true])
+        XCTAssertEqual(camera.backgroundResumes, 0)
 
+        model.handleScenePhase(.background)
         XCTAssertFalse(model.settings.backgroundLinkEnabled)
-        XCTAssertEqual(camera.scenePhases, [false])
+        XCTAssertEqual(camera.scenePhases, [true, false])
         XCTAssertEqual(camera.backgroundResumes, 0)
     }
 

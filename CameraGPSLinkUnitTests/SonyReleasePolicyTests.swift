@@ -42,7 +42,8 @@ final class SonyReleasePolicyTests: XCTestCase {
                     profile: fixture.profile,
                     descriptors: fixture.descriptors,
                     genericCompatibility: compatibility
-                )
+                ),
+                shouldContinueScanning: true
             )
         }
 
@@ -61,7 +62,8 @@ final class SonyReleasePolicyTests: XCTestCase {
                 profile: wrongProfile,
                 descriptors: fixture.descriptors,
                 genericCompatibility: compatibility
-            )
+            ),
+            shouldContinueScanning: true
         )
 
         var wrongDescriptors = fixture.descriptors
@@ -72,7 +74,27 @@ final class SonyReleasePolicyTests: XCTestCase {
                 profile: fixture.profile,
                 descriptors: wrongDescriptors,
                 genericCompatibility: compatibility
-            )
+            ),
+            shouldContinueScanning: true
+        )
+
+        let structurallyUnsupported = SonyLocationProfile(
+            kind: .unsupported,
+            reason: "missing required characteristic",
+            protocolVersion: 101,
+            experimental: false,
+            hasStatusNotifications: false,
+            hasTimeCorrection: false,
+            hasAreaAdjustment: false
+        )
+        assertUnsupported(
+            policy.evaluate(
+                identity: fixture.identity,
+                profile: structurallyUnsupported,
+                descriptors: fixture.descriptors,
+                genericCompatibility: compatibility
+            ),
+            shouldContinueScanning: false
         )
     }
 
@@ -86,7 +108,8 @@ final class SonyReleasePolicyTests: XCTestCase {
                 profile: fixture.profile,
                 descriptors: fixture.descriptors,
                 genericCompatibility: SonyCompatibility(confidence: .experimental, evidence: nil)
-            )
+            ),
+            shouldContinueScanning: true
         )
         XCTAssertTrue(policy.verifiedEntries.isEmpty)
         XCTAssertFalse(policy.allowsExperimentalApproval)
@@ -213,11 +236,20 @@ final class SonyReleasePolicyTests: XCTestCase {
 
     private func assertUnsupported(
         _ decision: SonyReleaseDecision,
+        shouldContinueScanning: Bool? = nil,
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        guard case .unsupported = decision else {
+        guard case .unsupported(let rejection) = decision else {
             return XCTFail("Expected unsupported decision", file: file, line: line)
+        }
+        if let shouldContinueScanning {
+            XCTAssertEqual(
+                rejection.shouldContinueScanning,
+                shouldContinueScanning,
+                file: file,
+                line: line
+            )
         }
     }
 

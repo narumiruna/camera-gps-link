@@ -305,6 +305,36 @@ final class CameraBLEManagerPlanIntegrationTests: XCTestCase {
         XCTAssertTrue(manager.sanitizedOperationOrder.isEmpty)
     }
 
+    func testCandidateRescanPreservesAttemptAndRejectedPeripherals() {
+        let manager = CameraBLEManager(
+            diagnosticsStore: DiagnosticsLogStore(),
+            timeoutPolicy: ForegroundConnectionTimeoutPolicy(),
+            timeoutScheduler: .live,
+            identityStore: InMemoryIdentityStore()
+        )
+        let rejectedID = UUID()
+        manager.rejectedPeripheralIDs.insert(rejectedID)
+        manager.resumeScanAfterCandidateRejection = true
+        manager.attemptOrigin = .foreground
+        manager.connectionIntent = .pairing
+        manager.activeSessionRequested = true
+        manager.currentIdentity = SonyCameraIdentity(model: "ILCE-7M4", firmware: "4.00", protocolVersion: 101)
+
+        manager.resumeScanningAfterCandidateRejection()
+
+        XCTAssertEqual(manager.state, .scanning)
+        XCTAssertEqual(manager.attemptOrigin, .foreground)
+        if case .pairing = manager.connectionIntent {
+        } else {
+            XCTFail("Pairing intent should survive candidate rejection")
+        }
+        XCTAssertTrue(manager.activeSessionRequested)
+        XCTAssertTrue(manager.rejectedPeripheralIDs.contains(rejectedID))
+        XCTAssertNil(manager.currentIdentity)
+        XCTAssertTrue(manager.foregroundTimeoutSession.isActive)
+        manager.cancelConnectionStageTimeout()
+    }
+
     func testNewSessionClearsVolatileIdentityAndApprovalContext() {
         let manager = CameraBLEManager(
             diagnosticsStore: DiagnosticsLogStore(),

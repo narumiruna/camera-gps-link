@@ -48,7 +48,7 @@ extension CameraBLEManager: CBCentralManagerDelegate {
         advertisementData: [String: Any],
         rssi: NSNumber
     ) {
-        guard !manualStopRequested else { return }
+        guard !manualStopRequested, !rejectedPeripheralIDs.contains(peripheral.identifier) else { return }
         let localName = advertisementData[CBAdvertisementDataLocalNameKey] as? String
         let name = peripheral.name ?? localName ?? ""
         let manufacturerData = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data
@@ -106,6 +106,10 @@ extension CameraBLEManager: CBCentralManagerDelegate {
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        let shouldResumeCandidateScan = resumeScanAfterCandidateRejection && !manualStopRequested
+        if !shouldResumeCandidateScan {
+            resumeScanAfterCandidateRejection = false
+        }
         let wasForegroundAttempt = attemptOrigin == .foreground && state != .linked
         cancelConnectionStageTimeout()
         appendLog("Disconnected")
@@ -134,6 +138,11 @@ extension CameraBLEManager: CBCentralManagerDelegate {
             setUserLinkIntent(active: false)
             lastError = cleanupDiagnostic
             state = .failed
+            return
+        }
+        if shouldResumeCandidateScan {
+            compensationInProgress = false
+            resumeScanningAfterCandidateRejection()
             return
         }
         if state == .stopping {
@@ -379,6 +388,44 @@ enum PendingBLEOperation {
 }
 
 extension CameraBLEManager {
+    func skipCurrentCandidateAndContinueScanning(_ reason: String) {
+        guard let peripheral else {
+            rejectUnsupportedProfile(reason)
+            return
+        }
+        startConnectionStageTimeout(.connecting)
+        stopOperationTimeout()
+        operationQueue.removeAll()
+        pendingOperation = nil
+        onQueueEmpty = nil
+        experimentalApprovalPending = false
+        pairingConfirmationPending = false
+        rejectedPeripheralIDs.insert(peripheral.identifier)
+        resumeScanAfterCandidateRejection = true
+        appendLog("Skipping non-target camera and continuing scan: \(reason)")
+        state = .scanning
+        centralManager.cancelPeripheralConnection(peripheral)
+    }
+
+    func resumeScanningAfterCandidateRejection() {
+        let retainedOrigin = attemptOrigin
+        let retainedIntent = connectionIntent
+        let retainedRejectedPeripheralIDs = rejectedPeripheralIDs
+        prepareForNewSession(resetCounters: false)
+        rejectedPeripheralIDs = retainedRejectedPeripheralIDs
+        resumeScanAfterCandidateRejection = false
+        connectionIntent = retainedIntent
+        attemptOrigin = retainedOrigin
+        activeSessionRequested = true
+        manualStopRequested = false
+        discoveredCameraName = nil
+        if retainedOrigin == .foreground {
+            foregroundTimeoutSession.begin()
+        }
+        appendLog("Resuming scan for an exact release-policy target")
+        scanForCamera()
+    }
+
     func rejectUnsupportedProfile(_ reason: String) {
         cancelConnectionStageTimeout()
         activeSessionRequested = false

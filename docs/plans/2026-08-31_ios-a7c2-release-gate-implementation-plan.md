@@ -63,7 +63,8 @@ flowchart TD
 - Make the unsupported state the only public recovery path for unverified identities.
 - Filter **Continue in Background** from public Release settings.
 - Sanitize persisted and newly applied settings so stale `backgroundLinkEnabled=true` cannot reactivate background services.
-- Enforce the same restriction in `CameraBLEManager` as defense in depth.
+- Enforce the same restriction in `CameraBLEManager` as defense in depth, while treating transient inactive scenes as foreground and stopping only after actual background entry.
+- In exact-target modes, disconnect and exclude a non-target Sony candidate, then continue the bounded scan for another camera instead of terminating the attempt.
 
 ### 4. Add qualification and Release build checks
 
@@ -83,6 +84,8 @@ Add or update tests proving:
 - Qualification and public Release never expose experimental override.
 - DD21 preflight occurs before notification and writes.
 - Rejected location and pairing requests enqueue no DD01, DD30, DD31, DD11, or EE01 operation.
+- Inactive scenes preserve foreground-only sessions; actual background entry stops them.
+- Exact-target scans skip rejected peripheral candidates and preserve the bounded foreground attempt.
 - Public Release hides and force-disables background operation, including stale persisted settings.
 - Debug, Qualification, and Release configurations compile.
 - `just check` passes.
@@ -95,7 +98,7 @@ The recipes composing `just check` pass after implementation:
 - smoke test, Swift typecheck, plist/project lint;
 - Debug Simulator and unsigned Debug device builds;
 - unsigned public Release and Release-optimized `QUALIFICATION` device builds;
-- 71 XCTest unit tests;
+- 72 XCTest unit tests;
 - 19 XCUITests, including public Release override/background assertions.
 
 ## Qualification handoff

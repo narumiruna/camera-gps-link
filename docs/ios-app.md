@@ -35,7 +35,7 @@ Open **Link Settings** from the home screen. Changes are staged until **Apply**;
 - **While App Is Open** — runs only while Camera GPS Link is open.
 - **Continue in Background** — available only in development and qualification builds while physical background qualification remains pending. It keeps location and remembered-camera reconnect behavior active when iOS permits it and requires Always Location permission.
 
-The public Release build hides **Continue in Background**, migrates a stale enabled preference to foreground-only, and enforces the same restriction in the location and BLE service layers.
+The public Release build hides **Continue in Background**, migrates a stale enabled preference to foreground-only, and enforces the same restriction in the location and BLE service layers. Temporary inactive states such as system interruptions do not stop the link; actual background entry does.
 
 ### Location Updates
 
@@ -77,7 +77,7 @@ The app resolves behavior from complete Sony CC/DD/EE service discovery and requ
 
 - **Modern:** protocol `>=65`, DD11/DD21, and write-with-response DD30/DD31. Read-only preflight strictly validates DD21 before any approval, notification subscription, or write. An authorized session then optionally subscribes DD01, writes DD30 then DD31, optionally reads DD32/DD33, and sends DD11.
 - **Legacy:** known protocol `<65`, DD11/DD21, and both DD30/DD31 absent. Read-only preflight validates DD21 before an authorized session sends DD11 without controls or notifications.
-- **Unsupported:** missing/wrong properties, partial controls, inconsistent protocol shape, unknown-version legacy shape, a blocked registry identity, or a distribution-policy mismatch. It performs no subscription or application write.
+- **Unsupported:** missing/wrong properties, partial controls, inconsistent protocol shape, unknown-version legacy shape, a blocked registry identity, or a distribution-policy mismatch. It performs no subscription or application write. Exact-target builds skip a non-target Sony candidate and continue the bounded scan for another camera.
 
 Strict DD21 accepts only evidence-backed 6/7-byte framing and controls the 95- or 91-byte DD11 packet. Qualification and public Release entries may require one exact packet size. Failure, cancellation, and timeout compensate every dispatched, possibly applied modern control in DD31-then-DD30 order. Cleanup cannot be disabled.
 

@@ -7,6 +7,14 @@ import Foundation
     import UIKit
 #endif
 
+enum AppLifecyclePhase: Equatable {
+    case active
+    case inactive
+    case background
+
+    var isForeground: Bool { self != .background }
+}
+
 struct CameraServiceSnapshot: Equatable {
     var state: CameraConnectionState
     var discoveredCameraName: String?
@@ -248,7 +256,7 @@ final class CameraGPSLinkAppModel: ObservableObject {
     private var pendingStart = false
     private var linkRequested = false
     private var isForeground = true
-    private var lastHandledForeground: Bool?
+    private var lastHandledLifecyclePhase: AppLifecyclePhase?
     private var transientError: String?
     private var didRegisterBackgroundTasks = false
     private var backgroundTaskCompletion: DispatchWorkItem?
@@ -350,8 +358,13 @@ final class CameraGPSLinkAppModel: ObservableObject {
     }
 
     func handleScenePhase(isForeground: Bool) {
-        guard lastHandledForeground != isForeground else { return }
-        lastHandledForeground = isForeground
+        handleScenePhase(isForeground ? .active : .background)
+    }
+
+    func handleScenePhase(_ phase: AppLifecyclePhase) {
+        guard lastHandledLifecyclePhase != phase else { return }
+        lastHandledLifecyclePhase = phase
+        let isForeground = phase.isForeground
         self.isForeground = isForeground
         locationService.configure(settings: settings, isForeground: isForeground)
         cameraService.handleScenePhase(isForeground: isForeground)
@@ -644,6 +657,7 @@ final class CameraGPSLinkAppModel: ObservableObject {
                 }
             }
 
+            lastHandledLifecyclePhase = .background
             isForeground = false
             locationService.configure(settings: settings, isForeground: false)
             cameraService.handleScenePhase(isForeground: false)

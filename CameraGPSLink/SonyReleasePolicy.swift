@@ -38,9 +38,14 @@ struct SonyReleaseAuthorization: Equatable {
     let confidence: SonySupportConfidence
 }
 
+struct SonyReleaseRejection: Equatable {
+    let message: String
+    let shouldContinueScanning: Bool
+}
+
 enum SonyReleaseDecision: Equatable {
     case proceed(SonyReleaseAuthorization)
-    case unsupported(String)
+    case unsupported(SonyReleaseRejection)
 }
 
 enum SonyReleasePolicyError: Error, LocalizedError, Equatable {
@@ -94,10 +99,17 @@ struct SonyReleasePolicy: Equatable {
         genericCompatibility: SonyCompatibility
     ) -> SonyReleaseDecision {
         guard profile.isExecutable else {
-            return .unsupported(profile.reason)
+            return .unsupported(
+                SonyReleaseRejection(message: profile.reason, shouldContinueScanning: false)
+            )
         }
         guard genericCompatibility.confidence != .unsupported else {
-            return .unsupported("This exact camera identity is blocked by the compatibility registry.")
+            return .unsupported(
+                SonyReleaseRejection(
+                    message: "This exact camera identity is blocked by the compatibility registry.",
+                    shouldContinueScanning: false
+                )
+            )
         }
 
         switch mode {
@@ -132,7 +144,12 @@ struct SonyReleasePolicy: Equatable {
                     descriptors: descriptors
                 )
             else {
-                return .unsupported("This camera does not match the A7C II qualification target.")
+                return .unsupported(
+                    SonyReleaseRejection(
+                        message: "This camera does not match the A7C II qualification target.",
+                        shouldContinueScanning: true
+                    )
+                )
             }
             return .proceed(
                 SonyReleaseAuthorization(
@@ -150,7 +167,12 @@ struct SonyReleasePolicy: Equatable {
                     descriptors: descriptors
                 )
             else {
-                return .unsupported("This camera identity is not supported by this public release.")
+                return .unsupported(
+                    SonyReleaseRejection(
+                        message: "This camera identity is not supported by this public release.",
+                        shouldContinueScanning: true
+                    )
+                )
             }
             return .proceed(
                 SonyReleaseAuthorization(
