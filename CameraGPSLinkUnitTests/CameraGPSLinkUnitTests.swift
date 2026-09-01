@@ -239,7 +239,7 @@ final class SonyLocationProfileTests: XCTestCase {
         let plan = SonyLocationSessionPlan.make(profile: profile)
         var executed: [String] = []
         DefaultSonyLocationSessionExecutor().execute(plan: plan) { executed.append($0.name) }
-        XCTAssertEqual(executed, ["DD01 notify", "DD30 lock", "DD31 enable", "DD21 config"])
+        XCTAssertEqual(executed, ["DD01 notify", "DD30 lock", "DD31 enable"])
 
         var acquisition = SonyLocationAcquisition()
         acquisition.recordAttempt(actionName: "DD30 lock")
@@ -815,12 +815,37 @@ final class CameraGPSLinkAppModelTests: XCTestCase {
         XCTAssertEqual(location.alwaysRequests, 1)
     }
 
+    func testPublicReleaseKeepsInactiveSceneForegroundAndStopsOnlyInBackground() {
+        let settings = LinkSettings(connectionAvailability: .continueInBackground, locationUpdates: .batterySaver)
+        let camera = FakeCameraService()
+        camera.snapshot.activeLinkIntent = true
+        let location = FakeLocationService(permission: .always)
+        let model = makeModel(
+            camera: camera,
+            location: location,
+            settings: settings,
+            releasePolicy: SonyReleasePolicy(mode: .publicRelease)
+        )
+
+        model.handleScenePhase(.inactive)
+        XCTAssertEqual(camera.scenePhases, [true])
+        XCTAssertEqual(camera.backgroundResumes, 0)
+        XCTAssertEqual(location.stops, 0)
+
+        model.handleScenePhase(.background)
+        XCTAssertFalse(model.settings.backgroundLinkEnabled)
+        XCTAssertEqual(camera.scenePhases, [true, false])
+        XCTAssertEqual(camera.backgroundResumes, 0)
+        XCTAssertEqual(location.stops, 1)
+    }
+
     private func makeModel(
         camera: FakeCameraService,
         location: FakeLocationService,
         settings: LinkSettings = .default,
         settingsStore: FakeSettingsStore? = nil,
-        now: @escaping () -> Date = { Date(timeIntervalSince1970: 10_000) }
+        now: @escaping () -> Date = { Date(timeIntervalSince1970: 10_000) },
+        releasePolicy: SonyReleasePolicy = .current
     ) -> CameraGPSLinkAppModel {
         CameraGPSLinkAppModel(
             cameraService: camera,
@@ -828,7 +853,8 @@ final class CameraGPSLinkAppModelTests: XCTestCase {
             settingsStore: settingsStore ?? FakeSettingsStore(settings: settings),
             diagnosticsStore: DiagnosticsLogStore(),
             now: now,
-            openSettings: {}
+            openSettings: {},
+            releasePolicy: releasePolicy
         )
     }
 }
@@ -840,12 +866,14 @@ private final class FakeCameraService: CameraLinkServicing {
     var configurations: [LinkSettings] = []
     var foregroundStarts = 0
     var backgroundResumes = 0
+    var scenePhases: [Bool] = []
     var cancels = 0
     var stops = 0
     var sends = 0
     var locationProvider: (() -> CLLocation?)?
 
     func configure(settings: LinkSettings) { configurations.append(settings) }
+    func handleScenePhase(isForeground: Bool) { scenePhases.append(isForeground) }
     func setLocationProvider(_ provider: @escaping () -> CLLocation?) { locationProvider = provider }
     func startForegroundLink() { foregroundStarts += 1 }
     func resumeBackgroundLink() { backgroundResumes += 1 }

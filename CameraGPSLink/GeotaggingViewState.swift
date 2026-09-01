@@ -107,6 +107,7 @@ struct GeotaggingSnapshot: Equatable {
     var protocolVersion: Int?
     var packetSize: Int?
     var cleanupDiagnostic: String?
+    var allowsExperimentalApproval = true
 }
 
 struct GeotaggingViewState: Equatable {
@@ -171,7 +172,7 @@ struct GeotaggingViewState: Equatable {
         case .bluetoothUnavailable, .failed:
             return .needsAttention
         case .awaitingApproval:
-            return .approvalRequired
+            return snapshot.allowsExperimentalApproval ? .approvalRequired : .unsupported
         case .unsupported:
             return .unsupported
         case .scanning:

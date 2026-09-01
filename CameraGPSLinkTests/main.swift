@@ -110,8 +110,8 @@ let modernProfile = SonyLocationCapabilityResolver.resolve(
 require(modernProfile.kind == .modern, "Complete protocol-101 shape should resolve modern")
 require(
     SonyLocationSessionPlan.make(profile: modernProfile).setup.map(\.name)
-        == ["DD01 notify", "DD30 lock", "DD31 enable", "DD21 config"],
-    "Modern plan should preserve safe setup order"
+        == ["DD01 notify", "DD30 lock", "DD31 enable"],
+    "Modern plan should begin only after the DD21 read-only preflight"
 )
 
 let legacyProfile = SonyLocationCapabilityResolver.resolve(
@@ -121,8 +121,8 @@ let legacyProfile = SonyLocationCapabilityResolver.resolve(
 )
 require(legacyProfile.kind == .legacy, "Protocol-64 DD11/DD21 shape should resolve legacy")
 require(
-    SonyLocationSessionPlan.make(profile: legacyProfile).setup.map(\.name) == ["DD21 config"],
-    "Legacy plan must never enqueue modern controls"
+    SonyLocationSessionPlan.make(profile: legacyProfile).setup.isEmpty,
+    "Legacy plan must begin only after DD21 preflight and never enqueue modern controls"
 )
 require(
     (try? SonyLocationCapabilityResolver.parseDD21(Data([0x06, 0x10, 0x00, 0x9C, 0x02, 0x00, 0x00])))?.packetSize == 95,

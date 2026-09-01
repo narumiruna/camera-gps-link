@@ -6,6 +6,20 @@ extension CameraBLEManager {
         return approvalKey(identity: identity, profile: profile)
     }
 
+    func handleDD21PreflightValidationFailure(_ message: String) {
+        pendingOperation = nil
+        stopOperationTimeout()
+        operationQueue.removeAll()
+        onQueueEmpty = nil
+        if cancelAfterCurrentOperation {
+            cancelAfterCurrentOperation = false
+            appendLog("Discarding DD21 validation failure after cancellation")
+            beginCompensation(finalState: .stopped, disconnectAfter: true)
+            return
+        }
+        rejectUnsupportedProfile(message)
+    }
+
     func enqueue(_ action: SonyLocationAction) {
         switch action.kind {
         case .notify(let enabled):
@@ -43,7 +57,7 @@ extension CameraBLEManager {
     }
 
     func sendLocationIfDue(force: Bool = false) {
-        guard state == .linked else { return }
+        guard state == .linked, permitsLocationWrites else { return }
         if !force, let lastSentAt, Date().timeIntervalSince(lastSentAt) < updateInterval {
             return
         }
@@ -51,6 +65,11 @@ extension CameraBLEManager {
     }
 
     func startSendingLocations() {
+        guard permitsLocationWrites else {
+            appendLog("Foreground-only location link cannot start while the app is in background")
+            stopLink()
+            return
+        }
         cancelConnectionStageTimeout()
         pendingReconnectArmed = false
         state = .linked
@@ -63,12 +82,17 @@ extension CameraBLEManager {
 
     func restartSendTimer() {
         stopTimer()
+        guard permitsLocationWrites else { return }
         sendTimer = Timer.scheduledTimer(withTimeInterval: updateInterval, repeats: true) { [weak self] _ in
             self?.sendLocationOnce()
         }
     }
 
     func sendLocationOnce() {
+        guard permitsLocationWrites else {
+            appendLog("Skipping DD11 because foreground-only location writes are suspended")
+            return
+        }
         guard pendingOperation == nil else {
             appendLog("Skipping location send because a BLE operation is still pending")
             return

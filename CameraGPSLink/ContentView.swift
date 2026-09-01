@@ -21,7 +21,10 @@ struct ContentView: View {
             )
             .navigationTitle("Camera GPS Link")
             .sheet(isPresented: $showsSettings) {
-                LinkSettingsView(current: appModel.settings) { settings in
+                LinkSettingsView(
+                    current: appModel.settings,
+                    allowsBackground: appModel.allowsBackground
+                ) { settings in
                     appModel.applySettings(settings)
                 }
             }

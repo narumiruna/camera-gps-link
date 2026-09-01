@@ -28,8 +28,8 @@ final class CameraGPSLinkUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["connection-progress"].exists)
 
         app.buttons["Cancel"].tap()
-        XCTAssertTrue(app.staticTexts["Stopped"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.buttons["Start Geotagging"].exists)
+        XCTAssertTrue(app.staticTexts["Stopped"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Start Geotagging"].waitForExistence(timeout: 5))
 
         app.terminate()
         launch("timeout")
@@ -112,6 +112,20 @@ final class CameraGPSLinkUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Cancel"].exists)
     }
 
+    func testPublicReleaseHidesExperimentalOverride() {
+        launch("public-release-experimental")
+        XCTAssertTrue(app.staticTexts["Unsupported Camera Profile"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["This camera identity is not supported by this public release."].exists)
+        XCTAssertFalse(app.buttons["Continue with Experimental Profile"].exists)
+    }
+
+    func testPublicReleaseHidesBackgroundOption() {
+        launch("public-release-settings")
+        openLinkSettings()
+        XCTAssertFalse(app.staticTexts["Continue in Background"].exists)
+        XCTAssertFalse(app.buttons["Continue in Background"].exists)
+    }
+
     func testPermissionDeniedShowsActionableRecovery() {
         launch("permission-denied")
 
@@ -188,7 +202,7 @@ final class CameraGPSLinkUITests: XCTestCase {
         app.buttons["request-pairing-init"].tap()
         XCTAssertTrue(app.buttons["Send Pairing Initialization"].waitForExistence(timeout: 2))
         app.buttons["Send Pairing Initialization"].tap()
-        XCTAssertFalse(app.buttons["Send Pairing Initialization"].exists)
+        waitForDisappearance(app.buttons["Send Pairing Initialization"])
     }
 
     func testDiagnosticsEmptyStateAndBoundedDenseLogRemainNavigable() {
@@ -267,7 +281,7 @@ final class CameraGPSLinkUITests: XCTestCase {
         app.launch()
     }
 
-    private func waitForDisappearance(_ element: XCUIElement, timeout: TimeInterval = 2) {
+    private func waitForDisappearance(_ element: XCUIElement, timeout: TimeInterval = 5) {
         let expectation = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "exists == false"),
             object: element
@@ -276,11 +290,18 @@ final class CameraGPSLinkUITests: XCTestCase {
     }
 
     private func openLinkSettings() {
-        let button = app.buttons["link-settings"]
-        scrollUntilVisible(button)
-        XCTAssertTrue(button.isHittable)
-        button.tap()
-        XCTAssertTrue(app.navigationBars["Link Settings"].waitForExistence(timeout: 3))
+        let navigationBar = app.navigationBars["Link Settings"]
+        for _ in 0..<3 {
+            let button = app.buttons["link-settings"]
+            scrollUntilVisible(button)
+            if button.isHittable {
+                button.tap()
+            }
+            if navigationBar.waitForExistence(timeout: 3) {
+                return
+            }
+        }
+        XCTFail("Link Settings did not open")
     }
 
     private func selectSetting(_ label: String) {

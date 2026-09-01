@@ -1,3 +1,4 @@
+import CoreLocation
 import XCTest
 
 @testable import CameraGPSLink
@@ -216,6 +217,124 @@ final class CameraBLEManagerPlanIntegrationTests: XCTestCase {
         XCTAssertEqual(manager.attemptOrigin, .none)
     }
 
+    func testDD21ValidationFailureHonorsPendingCancellation() {
+        let manager = CameraBLEManager(
+            diagnosticsStore: DiagnosticsLogStore(),
+            timeoutPolicy: ForegroundConnectionTimeoutPolicy(),
+            timeoutScheduler: .live,
+            identityStore: InMemoryIdentityStore()
+        )
+        manager.pendingOperation = .read(
+            name: "DD21 preflight",
+            uuid: manager.normalized(SonyProtocol.locationConfigReadUUID),
+            required: true,
+            onValue: nil
+        )
+        manager.cancelAfterCurrentOperation = true
+        manager.state = .discovering
+
+        manager.handleDD21PreflightValidationFailure("malformed fixture")
+
+        XCTAssertEqual(manager.state, .stopped)
+        XCTAssertFalse(manager.cancelAfterCurrentOperation)
+        XCTAssertNil(manager.lastError)
+    }
+
+    func testDirectReconnectRequiresMatchingStoredProtocolContext() {
+        let store = InMemoryIdentityStore()
+        let manager = CameraBLEManager(
+            diagnosticsStore: DiagnosticsLogStore(),
+            timeoutPolicy: ForegroundConnectionTimeoutPolicy(),
+            timeoutScheduler: .live,
+            identityStore: store
+        )
+        let peripheralID = UUID().uuidString
+        let descriptors: [SonyGattDescriptor] = []
+
+        XCTAssertFalse(manager.hasValidatedRememberedProtocolContext(peripheralID: peripheralID))
+
+        store.record = SonyValidatedIdentityRecord(
+            peripheralID: peripheralID,
+            identity: SonyCameraIdentity(model: "ILCE-7CM2", firmware: "2.01", protocolVersion: nil),
+            profile: .modern,
+            descriptorFingerprint: SonyLocationCapabilityResolver.descriptorFingerprint(descriptors)
+        )
+        XCTAssertFalse(manager.hasValidatedRememberedProtocolContext(peripheralID: peripheralID))
+
+        store.record = SonyValidatedIdentityRecord(
+            peripheralID: peripheralID,
+            identity: SonyCameraIdentity(model: "ILCE-7CM2", firmware: "2.01", protocolVersion: 101),
+            profile: .modern,
+            descriptorFingerprint: SonyLocationCapabilityResolver.descriptorFingerprint(descriptors)
+        )
+        XCTAssertTrue(manager.hasValidatedRememberedProtocolContext(peripheralID: peripheralID))
+        XCTAssertFalse(manager.hasValidatedRememberedProtocolContext(peripheralID: UUID().uuidString))
+    }
+
+    func testForegroundOnlyManagerStopsAndBlocksDD11InBackground() {
+        let manager = CameraBLEManager(
+            diagnosticsStore: DiagnosticsLogStore(),
+            timeoutPolicy: ForegroundConnectionTimeoutPolicy(),
+            timeoutScheduler: .live,
+            identityStore: InMemoryIdentityStore(),
+            releasePolicy: SonyReleasePolicy(mode: .publicRelease)
+        )
+        manager.configure(backgroundLinkEnabled: true, lowPowerModeEnabled: true)
+        manager.state = .linked
+        manager.activeSessionRequested = true
+        manager.setUserLinkIntent(active: true)
+
+        manager.handleScenePhase(isForeground: false)
+
+        XCTAssertEqual(manager.state, .stopped)
+        XCTAssertFalse(manager.permitsLocationWrites)
+        XCTAssertFalse(manager.userLinkIntentActive)
+        XCTAssertNil(manager.sendTimer)
+
+        manager.state = .linked
+        manager.setLocationProvider {
+            CLLocation(
+                coordinate: CLLocationCoordinate2D(latitude: 25.03, longitude: 121.56),
+                altitude: 0,
+                horizontalAccuracy: 5,
+                verticalAccuracy: 5,
+                timestamp: Date()
+            )
+        }
+        manager.sendLocationIfDue(force: true)
+        XCTAssertTrue(manager.sanitizedOperationOrder.isEmpty)
+    }
+
+    func testCandidateRescanPreservesAttemptAndRejectedPeripherals() {
+        let manager = CameraBLEManager(
+            diagnosticsStore: DiagnosticsLogStore(),
+            timeoutPolicy: ForegroundConnectionTimeoutPolicy(),
+            timeoutScheduler: .live,
+            identityStore: InMemoryIdentityStore()
+        )
+        let rejectedID = UUID()
+        manager.rejectedPeripheralIDs.insert(rejectedID)
+        manager.resumeScanAfterCandidateRejection = true
+        manager.attemptOrigin = .foreground
+        manager.connectionIntent = .pairing
+        manager.activeSessionRequested = true
+        manager.currentIdentity = SonyCameraIdentity(model: "ILCE-7M4", firmware: "4.00", protocolVersion: 101)
+
+        manager.resumeScanningAfterCandidateRejection()
+
+        XCTAssertEqual(manager.state, .scanning)
+        XCTAssertEqual(manager.attemptOrigin, .foreground)
+        if case .pairing = manager.connectionIntent {
+        } else {
+            XCTFail("Pairing intent should survive candidate rejection")
+        }
+        XCTAssertTrue(manager.activeSessionRequested)
+        XCTAssertTrue(manager.rejectedPeripheralIDs.contains(rejectedID))
+        XCTAssertNil(manager.currentIdentity)
+        XCTAssertTrue(manager.foregroundTimeoutSession.isActive)
+        manager.cancelConnectionStageTimeout()
+    }
+
     func testNewSessionClearsVolatileIdentityAndApprovalContext() {
         let manager = CameraBLEManager(
             diagnosticsStore: DiagnosticsLogStore(),
@@ -224,6 +343,11 @@ final class CameraBLEManagerPlanIntegrationTests: XCTestCase {
             identityStore: InMemoryIdentityStore()
         )
         manager.currentIdentity = SonyCameraIdentity(model: "ILCE-7M4", firmware: "4.00", protocolVersion: 101)
+        manager.releaseAuthorization = SonyReleaseAuthorization(
+            requiresExperimentalApproval: true,
+            expectedPacketSize: nil,
+            confidence: .experimental
+        )
         manager.sessionApprovalKey = "stale"
         manager.detectedFirmware = "4.00"
         manager.packetSize = 95
@@ -231,6 +355,7 @@ final class CameraBLEManagerPlanIntegrationTests: XCTestCase {
         manager.prepareForNewSession(resetCounters: false)
 
         XCTAssertNil(manager.currentIdentity)
+        XCTAssertNil(manager.releaseAuthorization)
         XCTAssertNil(manager.sessionApprovalKey)
         XCTAssertNil(manager.detectedFirmware)
         XCTAssertNil(manager.packetSize)
@@ -256,6 +381,11 @@ final class CameraBLEManagerPlanIntegrationTests: XCTestCase {
             hasAreaAdjustment: false
         )
         manager.supportConfidence = .experimental
+        manager.releaseAuthorization = SonyReleaseAuthorization(
+            requiresExperimentalApproval: true,
+            expectedPacketSize: nil,
+            confidence: .experimental
+        )
         manager.sessionApprovalKey = "approval-for-another-camera"
 
         manager.beginLocationSetup()
@@ -288,6 +418,12 @@ final class CameraBLEManagerPlanIntegrationTests: XCTestCase {
         manager.currentIdentity = SonyCameraIdentity(model: "ILCE-7M3", firmware: "4.01", protocolVersion: 64)
         manager.resolvedProfile = profile
         manager.supportConfidence = .verified
+        manager.releaseAuthorization = SonyReleaseAuthorization(
+            requiresExperimentalApproval: false,
+            expectedPacketSize: 91,
+            confidence: .verified
+        )
+        manager.packetSize = 91
         manager.activeSessionRequested = true
 
         manager.beginLocationSetup()

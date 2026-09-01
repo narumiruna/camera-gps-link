@@ -7,6 +7,7 @@ Every other row remains an automated-fixture candidate with no physical test or 
 
 The first public iOS App Store release is intentionally limited to Sony Alpha 7C II (`ILCE-7CM2`).
 Other model fixtures and research tools do not constitute public iOS support.
+The ordinary public Release registry remains empty until the A7C II iOS foreground qualification passes. A separate Release-optimized qualification build accepts only the exact A7C II `2.01` candidate and provides no experimental override.
 See [`plans/2026-08-31_ios-a7c2-only-app-store-release-plan.md`](plans/2026-08-31_ios-a7c2-only-app-store-release-plan.md) for the accepted release decision and verification gates.
 
 | Model | Firmware | Advertisement version | Profile | DD21 / packet | Python foreground | iOS foreground | Background | Evidence |

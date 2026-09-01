@@ -3,14 +3,20 @@ import SwiftUI
 struct LinkSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     let current: LinkSettings
+    let allowsBackground: Bool
     let apply: (LinkSettings) -> Bool
 
     @State private var draft: LinkSettingsDraft
     @State private var applyError: String?
     @State private var isApplying = false
 
-    init(current: LinkSettings, apply: @escaping (LinkSettings) -> Bool) {
+    init(
+        current: LinkSettings,
+        allowsBackground: Bool,
+        apply: @escaping (LinkSettings) -> Bool
+    ) {
         self.current = current
+        self.allowsBackground = allowsBackground
         self.apply = apply
         _draft = State(initialValue: LinkSettingsDraft(current: current))
     }
@@ -20,7 +26,7 @@ struct LinkSettingsView: View {
             Form {
                 Section {
                     Picker("Connection Availability", selection: $draft.value.connectionAvailability) {
-                        ForEach(ConnectionAvailability.allCases) { option in
+                        ForEach(ConnectionAvailability.availableOptions(allowsBackground: allowsBackground)) { option in
                             Text(option.label).tag(option)
                         }
                     }

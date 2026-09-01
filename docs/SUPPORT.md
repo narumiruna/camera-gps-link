@@ -13,7 +13,7 @@ Other camera models are not supported by the public iOS release.
 - Keep the app open while establishing the first connection.
 - Wait for **Ready to Geotag** before relying on the camera's cached location.
 
-Background operation depends on iOS permissions and system scheduling and cannot guarantee an update immediately before every photo.
+Background operation is disabled in the first public Release until physical qualification passes. Development and qualification background behavior depends on iOS permissions and system scheduling and cannot guarantee an update immediately before every photo.
 
 ## Contact
 

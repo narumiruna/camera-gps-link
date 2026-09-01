@@ -27,6 +27,7 @@
 		A10000000000000000000009 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000B /* Assets.xcassets */; };
 		A33D26C0EE99B9A5BF13F34E /* CameraGPSLinkUnitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90A9F0D479AB410E42204A74 /* CameraGPSLinkUnitTests.swift */; };
 		F30000000000000000000001 /* CameraBLEManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000001 /* CameraBLEManagerTests.swift */; };
+		F30000000000000000000002 /* SonyReleasePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000002 /* SonyReleasePolicyTests.swift */; };
 		C06C7561A1EC8EC3183C676C /* UITestFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030683E6BCA300F0509C6F20 /* UITestFixtures.swift */; };
 		E961AC5AA684726D3BEF44C5 /* GeotaggingViewState.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFD3A99718D2D7D7396A01A8 /* GeotaggingViewState.swift */; };
 		F10000000000000000000001 /* SonyLocationProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000001 /* SonyLocationProfile.swift */; };
@@ -34,6 +35,7 @@
 		F10000000000000000000003 /* SonyCameraIdentityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000003 /* SonyCameraIdentityStore.swift */; };
 		F10000000000000000000004 /* CameraBLEManager+CoreBluetooth.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000004 /* CameraBLEManager+CoreBluetooth.swift */; };
 		F10000000000000000000005 /* CameraBLEManager+Operations.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000005 /* CameraBLEManager+Operations.swift */; };
+		F10000000000000000000006 /* SonyReleasePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000006 /* SonyReleasePolicy.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -62,6 +64,7 @@
 		778BC63EDEAE17135873C8EC /* CameraGPSLinkUnitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CameraGPSLinkUnitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		90A9F0D479AB410E42204A74 /* CameraGPSLinkUnitTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraGPSLinkUnitTests.swift; sourceTree = "<group>"; };
 		F40000000000000000000001 /* CameraBLEManagerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraBLEManagerTests.swift; sourceTree = "<group>"; };
+		F40000000000000000000002 /* SonyReleasePolicyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SonyReleasePolicyTests.swift; sourceTree = "<group>"; };
 		91EEF86295BDE3EF8944F6F1 /* DiagnosticsLogStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DiagnosticsLogStore.swift; sourceTree = "<group>"; };
 		A20000000000000000000001 /* CameraGPSLinkApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraGPSLinkApp.swift; sourceTree = "<group>"; };
 		A20000000000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -85,6 +88,7 @@
 		F20000000000000000000003 /* SonyCameraIdentityStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SonyCameraIdentityStore.swift; sourceTree = "<group>"; };
 		F20000000000000000000004 /* CameraBLEManager+CoreBluetooth.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "CameraBLEManager+CoreBluetooth.swift"; sourceTree = "<group>"; };
 		F20000000000000000000005 /* CameraBLEManager+Operations.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "CameraBLEManager+Operations.swift"; sourceTree = "<group>"; };
+		F20000000000000000000006 /* SonyReleasePolicy.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SonyReleasePolicy.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -127,6 +131,7 @@
 			children = (
 				90A9F0D479AB410E42204A74 /* CameraGPSLinkUnitTests.swift */,
 				F40000000000000000000001 /* CameraBLEManagerTests.swift */,
+				F40000000000000000000002 /* SonyReleasePolicyTests.swift */,
 			);
 			path = CameraGPSLinkUnitTests;
 			sourceTree = "<group>";
@@ -168,6 +173,7 @@
 				F20000000000000000000003 /* SonyCameraIdentityStore.swift */,
 				F20000000000000000000004 /* CameraBLEManager+CoreBluetooth.swift */,
 				F20000000000000000000005 /* CameraBLEManager+Operations.swift */,
+				F20000000000000000000006 /* SonyReleasePolicy.swift */,
 			);
 			path = CameraGPSLink;
 			sourceTree = "<group>";
@@ -315,6 +321,7 @@
 			files = (
 				A33D26C0EE99B9A5BF13F34E /* CameraGPSLinkUnitTests.swift in Sources */,
 				F30000000000000000000001 /* CameraBLEManagerTests.swift in Sources */,
+				F30000000000000000000002 /* SonyReleasePolicyTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -350,6 +357,7 @@
 				F10000000000000000000003 /* SonyCameraIdentityStore.swift in Sources */,
 				F10000000000000000000004 /* CameraBLEManager+CoreBluetooth.swift in Sources */,
 				F10000000000000000000005 /* CameraBLEManager+Operations.swift in Sources */,
+				F10000000000000000000006 /* SonyReleasePolicy.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

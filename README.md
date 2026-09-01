@@ -31,7 +31,7 @@ The Python `sonygeotag` CLI, BLE diagnostics, and EXIF verification tools are ma
 6. Tap **Stop Geotagging** when the shooting session ends so the app can clean up the camera controls it acquired.
 
 **Ready to Geotag** appears only after the camera receives the first successful location packet in the current session.
-Background updates remain subject to iOS permissions and scheduling and cannot guarantee a fresh fix immediately before every photo.
+The public Release build remains foreground-only until background qualification passes. Development and qualification background updates remain subject to iOS permissions and scheduling and cannot guarantee a fresh fix immediately before every photo.
 
 See the [`iOS app guide`](docs/ios-app.md) for the complete workflow, settings, permission states, diagnostics behavior, and platform limitations.
 
@@ -82,6 +82,6 @@ justfile                  Local iOS commands
 
 - The A7C II iOS write and fresh-photo GPS EXIF regression remains required before the exact identity can be promoted to verified.
 - Camera firmware other than a physically qualified version must fail closed in the public Release build.
-- Background execution is opportunistic and can be prevented by force-quitting the app.
+- Public Release background operation is disabled until physical qualification passes; development and qualification background execution remains opportunistic and can be prevented by force-quitting the app.
 - Real BLE behavior, camera writes, background restoration, and battery use require physical-device testing.
 - Camera GPS Link updates the camera's cached location for new photos and does not modify existing images.
