@@ -368,6 +368,9 @@ final class CameraGPSLinkAppModel: ObservableObject {
         self.isForeground = isForeground
         locationService.configure(settings: settings, isForeground: isForeground)
         cameraService.handleScenePhase(isForeground: isForeground)
+        if !isForeground, !settings.backgroundLinkEnabled {
+            locationService.stopUpdating()
+        }
 
         if settings.backgroundLinkEnabled, linkRequested {
             if locationService.snapshot.permission.allowsForegroundLocation {

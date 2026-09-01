@@ -96,18 +96,46 @@ final class SonyReleasePolicyTests: XCTestCase {
             ),
             shouldContinueScanning: false
         )
+        assertUnsupported(
+            policy.evaluate(
+                identity: SonyCameraIdentity(model: "ILCE-7M4", firmware: "4.00", protocolVersion: 101),
+                profile: structurallyUnsupported,
+                descriptors: fixture.descriptors,
+                genericCompatibility: compatibility
+            ),
+            shouldContinueScanning: true
+        )
     }
 
     func testPublicReleaseRejectsCandidateUntilVerifiedRegistryPromotion() {
         let fixture = makeCandidate()
         let policy = SonyReleasePolicy(mode: .publicRelease)
 
+        let compatibility = SonyCompatibility(confidence: .experimental, evidence: nil)
         assertUnsupported(
             policy.evaluate(
                 identity: fixture.identity,
                 profile: fixture.profile,
                 descriptors: fixture.descriptors,
-                genericCompatibility: SonyCompatibility(confidence: .experimental, evidence: nil)
+                genericCompatibility: compatibility
+            ),
+            shouldContinueScanning: true
+        )
+        let unsupportedProfile = SonyLocationProfile(
+            kind: .unsupported,
+            reason: "missing required characteristic",
+            protocolVersion: 101,
+            experimental: false,
+            hasStatusNotifications: false,
+            hasTimeCorrection: false,
+            hasAreaAdjustment: false
+        )
+        assertUnsupported(
+            policy.evaluate(
+                identity: fixture.identity,
+                profile: unsupportedProfile,
+                descriptors: fixture.descriptors,
+                genericCompatibility: compatibility
             ),
             shouldContinueScanning: true
         )
@@ -153,6 +181,64 @@ final class SonyReleasePolicyTests: XCTestCase {
         XCTAssertTrue(SonyReleasePolicy(mode: .development).allowsExperimentalApproval)
     }
 
+    func testQualificationPairingRequiresExactEE01EndpointShape() {
+        let policy = SonyReleasePolicy(mode: .qualification)
+        let locationFixture = makeCandidate()
+        let pairingFixture = makeCandidate(includePairing: true)
+        let compatibility = SonyCompatibility(confidence: .experimental, evidence: nil)
+
+        guard
+            case .proceed = policy.evaluate(
+                identity: locationFixture.identity,
+                profile: locationFixture.profile,
+                descriptors: locationFixture.descriptors,
+                genericCompatibility: compatibility
+            )
+        else {
+            return XCTFail("Location authorization must not depend on the pairing service")
+        }
+        guard
+            case .proceed = policy.evaluate(
+                identity: pairingFixture.identity,
+                profile: pairingFixture.profile,
+                descriptors: pairingFixture.descriptors,
+                genericCompatibility: compatibility,
+                requiresPairingEndpoint: true
+            )
+        else {
+            return XCTFail("Evidence-backed EE01 pairing shape should proceed")
+        }
+
+        assertUnsupported(
+            policy.evaluate(
+                identity: locationFixture.identity,
+                profile: locationFixture.profile,
+                descriptors: locationFixture.descriptors,
+                genericCompatibility: compatibility,
+                requiresPairingEndpoint: true
+            ),
+            shouldContinueScanning: true
+        )
+        var wrongPairingDescriptors = locationFixture.descriptors
+        wrongPairingDescriptors.append(
+            descriptor(
+                SonyProtocol.pairingInitUUID,
+                [.writeWithoutResponse],
+                service: SonyProtocol.pairingServiceUUID
+            )
+        )
+        assertUnsupported(
+            policy.evaluate(
+                identity: locationFixture.identity,
+                profile: locationFixture.profile,
+                descriptors: wrongPairingDescriptors,
+                genericCompatibility: compatibility,
+                requiresPairingEndpoint: true
+            ),
+            shouldContinueScanning: true
+        )
+    }
+
     func testExactPolicyRejectsDifferentDD21PacketSize() throws {
         let authorization = SonyReleaseAuthorization(
             requiresExperimentalApproval: false,
@@ -195,6 +281,20 @@ final class SonyReleasePolicyTests: XCTestCase {
 
     @MainActor
     func testQualificationLocationAndPairingBeginWithReadOnlyDD21Preflight() {
+        let missingPairingEndpoint = makeCandidate()
+        let rejectedPairingManager = makeManager(policy: SonyReleasePolicy(mode: .qualification))
+        rejectedPairingManager.activeSessionRequested = true
+        rejectedPairingManager.connectionIntent = .pairing
+        rejectedPairingManager.discoveredCameraName = missingPairingEndpoint.identity.model
+        rejectedPairingManager.detectedFirmware = missingPairingEndpoint.identity.firmware
+        rejectedPairingManager.advertisementProtocolVersion = missingPairingEndpoint.identity.protocolVersion
+        rejectedPairingManager.descriptors = missingPairingEndpoint.descriptors
+
+        rejectedPairingManager.resolveDiscoveredProfile()
+
+        XCTAssertEqual(rejectedPairingManager.state, .unsupported)
+        XCTAssertTrue(rejectedPairingManager.sanitizedOperationOrder.isEmpty)
+
         for intent in [CameraConnectionIntent.location, .pairing] {
             let fixture = makeCandidate(includePairing: true)
             let manager = makeManager(policy: SonyReleasePolicy(mode: .qualification))

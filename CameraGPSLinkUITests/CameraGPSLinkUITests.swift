@@ -202,7 +202,7 @@ final class CameraGPSLinkUITests: XCTestCase {
         app.buttons["request-pairing-init"].tap()
         XCTAssertTrue(app.buttons["Send Pairing Initialization"].waitForExistence(timeout: 2))
         app.buttons["Send Pairing Initialization"].tap()
-        XCTAssertFalse(app.buttons["Send Pairing Initialization"].exists)
+        waitForDisappearance(app.buttons["Send Pairing Initialization"])
     }
 
     func testDiagnosticsEmptyStateAndBoundedDenseLogRemainNavigable() {

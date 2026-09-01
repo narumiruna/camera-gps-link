@@ -12,14 +12,11 @@ struct SonyReleaseCompatibilityEntry: Equatable {
     let protocolVersion: Int
     let profile: SonyLocationProfileKind
     let descriptorFingerprint: String
+    let pairingDescriptorFingerprint: String
     let packetSize: Int
     let evidence: String
 
-    func matches(
-        identity: SonyCameraIdentity,
-        profile: SonyLocationProfile,
-        descriptors: [SonyGattDescriptor]
-    ) -> Bool {
+    func matchesIdentity(_ identity: SonyCameraIdentity) -> Bool {
         SonyCameraIdentity(
             model: model,
             firmware: firmware,
@@ -27,8 +24,19 @@ struct SonyReleaseCompatibilityEntry: Equatable {
         ).normalizedModel == identity.normalizedModel
             && identity.firmware == firmware
             && identity.protocolVersion == protocolVersion
+    }
+
+    func matches(
+        identity: SonyCameraIdentity,
+        profile: SonyLocationProfile,
+        descriptors: [SonyGattDescriptor],
+        requiresPairingEndpoint: Bool
+    ) -> Bool {
+        matchesIdentity(identity)
             && profile.kind == self.profile
             && SonyReleasePolicy.releaseDescriptorFingerprint(descriptors) == descriptorFingerprint
+            && (!requiresPairingEndpoint
+                || SonyReleasePolicy.pairingDescriptorFingerprint(descriptors) == pairingDescriptorFingerprint)
     }
 }
 
@@ -96,11 +104,15 @@ struct SonyReleasePolicy: Equatable {
         identity: SonyCameraIdentity,
         profile: SonyLocationProfile,
         descriptors: [SonyGattDescriptor],
-        genericCompatibility: SonyCompatibility
+        genericCompatibility: SonyCompatibility,
+        requiresPairingEndpoint: Bool = false
     ) -> SonyReleaseDecision {
         guard profile.isExecutable else {
             return .unsupported(
-                SonyReleaseRejection(message: profile.reason, shouldContinueScanning: false)
+                SonyReleaseRejection(
+                    message: profile.reason,
+                    shouldContinueScanning: shouldContinueScanningAfterUnsupportedProfile(identity: identity)
+                )
             )
         }
         guard genericCompatibility.confidence != .unsupported else {
@@ -118,7 +130,8 @@ struct SonyReleasePolicy: Equatable {
                 in: verifiedEntries,
                 identity: identity,
                 profile: profile,
-                descriptors: descriptors
+                descriptors: descriptors,
+                requiresPairingEndpoint: requiresPairingEndpoint
             ) {
                 return .proceed(
                     SonyReleaseAuthorization(
@@ -141,7 +154,8 @@ struct SonyReleasePolicy: Equatable {
                     in: qualificationEntries,
                     identity: identity,
                     profile: profile,
-                    descriptors: descriptors
+                    descriptors: descriptors,
+                    requiresPairingEndpoint: requiresPairingEndpoint
                 )
             else {
                 return .unsupported(
@@ -164,7 +178,8 @@ struct SonyReleasePolicy: Equatable {
                     in: verifiedEntries,
                     identity: identity,
                     profile: profile,
-                    descriptors: descriptors
+                    descriptors: descriptors,
+                    requiresPairingEndpoint: requiresPairingEndpoint
                 )
             else {
                 return .unsupported(
@@ -198,6 +213,12 @@ struct SonyReleasePolicy: Equatable {
         ])
         return SonyLocationCapabilityResolver.descriptorFingerprint(
             descriptors.filter { releaseServices.contains($0.serviceUUID) }
+        )
+    }
+
+    static func pairingDescriptorFingerprint(_ descriptors: [SonyGattDescriptor]) -> String {
+        SonyLocationCapabilityResolver.descriptorFingerprint(
+            descriptors.filter { $0.serviceUUID == SonyProtocol.pairingServiceUUID.lowercased() }
         )
     }
 
@@ -255,6 +276,13 @@ struct SonyReleasePolicy: Equatable {
             protocolVersion: 101,
             profile: .modern,
             descriptorFingerprint: releaseDescriptorFingerprint(descriptors),
+            pairingDescriptorFingerprint: pairingDescriptorFingerprint([
+                SonyGattDescriptor(
+                    serviceUUID: SonyProtocol.pairingServiceUUID,
+                    characteristicUUID: SonyProtocol.pairingInitUUID,
+                    properties: [.write]
+                )
+            ]),
             packetSize: SonyProtocol.locationPacketSizeWithTimezone,
             evidence: "A7C II 2.01 iOS qualification candidate"
         )
@@ -268,8 +296,29 @@ struct SonyReleasePolicy: Equatable {
         in entries: [SonyReleaseCompatibilityEntry],
         identity: SonyCameraIdentity,
         profile: SonyLocationProfile,
-        descriptors: [SonyGattDescriptor]
+        descriptors: [SonyGattDescriptor],
+        requiresPairingEndpoint: Bool
     ) -> SonyReleaseCompatibilityEntry? {
-        entries.first { $0.matches(identity: identity, profile: profile, descriptors: descriptors) }
+        entries.first {
+            $0.matches(
+                identity: identity,
+                profile: profile,
+                descriptors: descriptors,
+                requiresPairingEndpoint: requiresPairingEndpoint
+            )
+        }
+    }
+
+    private func shouldContinueScanningAfterUnsupportedProfile(identity: SonyCameraIdentity) -> Bool {
+        let exactEntries: [SonyReleaseCompatibilityEntry]
+        switch mode {
+        case .development:
+            return false
+        case .qualification:
+            exactEntries = qualificationEntries
+        case .publicRelease:
+            exactEntries = verifiedEntries
+        }
+        return !exactEntries.contains { $0.matchesIdentity(identity) }
     }
 }

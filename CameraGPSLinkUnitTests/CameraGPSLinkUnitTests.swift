@@ -830,11 +830,13 @@ final class CameraGPSLinkAppModelTests: XCTestCase {
         model.handleScenePhase(.inactive)
         XCTAssertEqual(camera.scenePhases, [true])
         XCTAssertEqual(camera.backgroundResumes, 0)
+        XCTAssertEqual(location.stops, 0)
 
         model.handleScenePhase(.background)
         XCTAssertFalse(model.settings.backgroundLinkEnabled)
         XCTAssertEqual(camera.scenePhases, [true, false])
         XCTAssertEqual(camera.backgroundResumes, 0)
+        XCTAssertEqual(location.stops, 1)
     }
 
     private func makeModel(

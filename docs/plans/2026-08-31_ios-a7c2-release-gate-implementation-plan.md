@@ -98,7 +98,7 @@ The recipes composing `just check` pass after implementation:
 - smoke test, Swift typecheck, plist/project lint;
 - Debug Simulator and unsigned Debug device builds;
 - unsigned public Release and Release-optimized `QUALIFICATION` device builds;
-- 72 XCTest unit tests;
+- 73 XCTest unit tests;
 - 19 XCUITests, including public Release override/background assertions.
 
 ## Qualification handoff

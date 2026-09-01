@@ -528,7 +528,8 @@ final class CameraBLEManager: NSObject, ObservableObject {
             identity: identity,
             profile: profile,
             descriptors: descriptors,
-            genericCompatibility: compatibility
+            genericCompatibility: compatibility,
+            requiresPairingEndpoint: connectionIntent == .pairing
         ) {
         case .unsupported(let rejection):
             supportConfidence = .unsupported
