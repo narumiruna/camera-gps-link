@@ -53,7 +53,8 @@ struct DiagnosticsView: View {
             Section("Pairing Initialization") {
                 diagnosticRow("Status", camera.pairingStatus)
                 Text(
-                    "EE01 is never part of a location session. Use this only while the camera is explicitly in pairing mode."
+                    "EE01 is never part of a location session. "
+                        + "Use this only while the camera is explicitly in pairing mode."
                 )
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -71,6 +72,14 @@ struct DiagnosticsView: View {
                         appModel.cancelPairingInitialization()
                     }
                 }
+            }
+
+            Section("Health Alerts") {
+                diagnosticRow("Preference", appModel.settings.healthAlertsEnabled ? "On" : "Off")
+                diagnosticRow("Notification permission", appModel.notificationAuthorization.label)
+                diagnosticRow("Health", appModel.healthMonitorSnapshot.healthClassification)
+                diagnosticRow("Managed alerts", appModel.healthMonitorSnapshot.pendingKindLabel)
+                diagnosticRow("Next alert", appModel.healthMonitorSnapshot.pendingDeadlineLabel)
             }
 
             Section("iPhone Location") {

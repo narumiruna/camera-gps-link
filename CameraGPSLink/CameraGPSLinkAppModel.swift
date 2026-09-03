@@ -241,6 +241,7 @@ final class CameraGPSLinkAppModel: ObservableObject {
 
     @Published private(set) var settings: LinkSettings
     @Published private(set) var viewState: GeotaggingViewState
+    @Published private(set) var notificationAuthorization: HealthNotificationAuthorization
 
     let diagnosticsStore: DiagnosticsLogStore
     let releasePolicy: SonyReleasePolicy
@@ -250,6 +251,8 @@ final class CameraGPSLinkAppModel: ObservableObject {
     private let cameraService: CameraLinkServicing
     private let locationService: LocationServicing
     private let settingsStore: LinkSettingsStoring
+    private let notificationService: HealthNotificationServicing
+    private let healthMonitor: ConnectionHealthMonitor
     private let now: () -> Date
     private let openSettingsAction: () -> Void
     private let backgroundRefreshIdentifier = "dev.narumi.cameragpslink.refresh"
@@ -265,6 +268,7 @@ final class CameraGPSLinkAppModel: ObservableObject {
 
     var cameraSnapshot: CameraServiceSnapshot { cameraService.snapshot }
     var locationSnapshot: LocationServiceSnapshot { locationService.snapshot }
+    var healthMonitorSnapshot: ConnectionHealthMonitorSnapshot { healthMonitor.snapshot }
 
     convenience init() {
         let diagnostics = DiagnosticsLogStore()
@@ -273,11 +277,13 @@ final class CameraGPSLinkAppModel: ObservableObject {
         let cameraManager = CameraBLEManager(diagnosticsStore: diagnostics, releasePolicy: releasePolicy)
         let locationAdapter = CoreLocationServiceAdapter(provider: locationProvider)
         let cameraAdapter = CameraBLEServiceAdapter(manager: cameraManager)
+        let notificationService = LocalHealthNotificationService()
         self.init(
             cameraService: cameraAdapter,
             locationService: locationAdapter,
             settingsStore: UserDefaultsLinkSettingsStore(allowsBackground: releasePolicy.allowsBackground),
             diagnosticsStore: diagnostics,
+            notificationService: notificationService,
             now: Date.init,
             openSettings: {
                 #if canImport(UIKit)
@@ -296,6 +302,7 @@ final class CameraGPSLinkAppModel: ObservableObject {
         locationService: LocationServicing,
         settingsStore: LinkSettingsStoring,
         diagnosticsStore: DiagnosticsLogStore,
+        notificationService: HealthNotificationServicing? = nil,
         now: @escaping () -> Date,
         openSettings: @escaping () -> Void,
         releasePolicy: SonyReleasePolicy = .current
@@ -304,6 +311,13 @@ final class CameraGPSLinkAppModel: ObservableObject {
         self.locationService = locationService
         self.settingsStore = settingsStore
         self.diagnosticsStore = diagnosticsStore
+        let selectedNotificationService = notificationService ?? NoopHealthNotificationService()
+        self.notificationService = selectedNotificationService
+        healthMonitor = ConnectionHealthMonitor(
+            notifications: selectedNotificationService,
+            diagnostics: diagnosticsStore
+        )
+        notificationAuthorization = selectedNotificationService.authorizationStatus
         self.releasePolicy = releasePolicy
         self.now = now
         self.openSettingsAction = openSettings
@@ -328,7 +342,11 @@ final class CameraGPSLinkAppModel: ObservableObject {
                 pendingStart: false,
                 transientError: initialError,
                 allowsExperimentalApproval: releasePolicy.allowsExperimentalApproval,
-                now: now()
+                health: Self.makeHealth(
+                    camera: cameraService.snapshot,
+                    location: locationService.snapshot,
+                    now: now()
+                )
             ),
             now: now()
         )
@@ -338,6 +356,16 @@ final class CameraGPSLinkAppModel: ObservableObject {
         }
         locationService.onChange = { [weak self] in
             self?.serviceDidChange()
+        }
+        selectedNotificationService.onAuthorizationChange = { [weak self] authorization in
+            self?.notificationAuthorization = authorization
+            self?.refreshViewState()
+        }
+        selectedNotificationService.onError = { [weak self] kind, message in
+            if let kind {
+                self?.healthMonitor.notificationRequestFailed(kind)
+            }
+            self?.diagnosticsStore.append(message)
         }
         cameraService.setLocationProvider { [weak locationService] in
             locationService?.snapshot.currentLocation
@@ -350,6 +378,7 @@ final class CameraGPSLinkAppModel: ObservableObject {
                 self?.refreshTimeDerivedState()
             }
         }
+        selectedNotificationService.refreshAuthorization()
         refreshViewState()
     }
 
@@ -366,6 +395,12 @@ final class CameraGPSLinkAppModel: ObservableObject {
         lastHandledLifecyclePhase = phase
         let isForeground = phase.isForeground
         self.isForeground = isForeground
+        if phase == .active {
+            healthMonitor.appBecameActive()
+            notificationService.refreshAuthorization()
+        } else if phase == .background, !settings.backgroundLinkEnabled, linkRequested {
+            healthMonitor.suspendForegroundOnly(using: makeHealthMonitorContext(at: now()))
+        }
         locationService.configure(settings: settings, isForeground: isForeground)
         cameraService.handleScenePhase(isForeground: isForeground)
         if !isForeground, !settings.backgroundLinkEnabled {
@@ -424,6 +459,7 @@ final class CameraGPSLinkAppModel: ObservableObject {
     }
 
     func cancelCurrentAttempt() {
+        healthMonitor.endSession()
         pendingStart = false
         linkRequested = false
         transientError = nil
@@ -454,6 +490,7 @@ final class CameraGPSLinkAppModel: ObservableObject {
     }
 
     func stopGeotagging() {
+        healthMonitor.endSession()
         pendingStart = false
         linkRequested = false
         transientError = nil
@@ -495,6 +532,9 @@ final class CameraGPSLinkAppModel: ObservableObject {
 
         settings = acceptedSettings
         transientError = nil
+        if previous.healthAlertsEnabled, !acceptedSettings.healthAlertsEnabled {
+            healthMonitor.endSession()
+        }
         cameraService.configure(settings: acceptedSettings)
         locationService.configure(settings: acceptedSettings, isForeground: isForeground)
 
@@ -508,6 +548,12 @@ final class CameraGPSLinkAppModel: ObservableObject {
         }
         if !acceptedSettings.backgroundLinkEnabled, !isForeground {
             locationService.stopUpdating()
+        }
+        if !previous.healthAlertsEnabled,
+            acceptedSettings.healthAlertsEnabled,
+            notificationAuthorization == .notDetermined
+        {
+            notificationService.requestAuthorization()
         }
         scheduleBackgroundRefresh()
         refreshViewState()
@@ -531,6 +577,7 @@ final class CameraGPSLinkAppModel: ObservableObject {
 
     private func beginForegroundLink() {
         guard !pendingStart || locationService.snapshot.permission.allowsForegroundLocation else { return }
+        healthMonitor.beginSession()
         pendingStart = false
         linkRequested = true
         transientError = nil
@@ -567,18 +614,72 @@ final class CameraGPSLinkAppModel: ObservableObject {
     }
 
     private func refreshViewState() {
+        let currentTime = now()
+        let camera = cameraService.snapshot
+        let location = locationService.snapshot
+        let health = Self.makeHealth(camera: camera, location: location, now: currentTime)
+        healthMonitor.update(
+            makeHealthMonitorContext(
+                camera: camera,
+                health: health,
+                at: currentTime
+            )
+        )
         viewState = GeotaggingViewState.make(
             from: Self.makeSnapshot(
-                camera: cameraService.snapshot,
-                location: locationService.snapshot,
+                camera: camera,
+                location: location,
                 settings: settings,
                 isForeground: isForeground,
                 pendingStart: pendingStart,
                 transientError: transientError,
                 allowsExperimentalApproval: releasePolicy.allowsExperimentalApproval,
-                now: now()
+                health: health
             ),
-            now: now()
+            now: currentTime
+        )
+    }
+
+    private func makeHealthMonitorContext(at currentTime: Date) -> ConnectionHealthMonitorContext {
+        let camera = cameraService.snapshot
+        let location = locationService.snapshot
+        return makeHealthMonitorContext(
+            camera: camera,
+            health: Self.makeHealth(camera: camera, location: location, now: currentTime),
+            at: currentTime
+        )
+    }
+
+    private func makeHealthMonitorContext(
+        camera: CameraServiceSnapshot,
+        health: ConnectionHealth,
+        at currentTime: Date
+    ) -> ConnectionHealthMonitorContext {
+        ConnectionHealthMonitorContext(
+            cameraState: camera.state,
+            packetsSent: camera.packetsSent,
+            lastSentAt: camera.lastSentAt,
+            activeLinkIntent: linkRequested,
+            isForeground: isForeground,
+            backgroundLinkEnabled: settings.backgroundLinkEnabled,
+            alertsEnabled: settings.healthAlertsEnabled,
+            authorization: notificationAuthorization,
+            health: health,
+            now: currentTime
+        )
+    }
+
+    private static func makeHealth(
+        camera: CameraServiceSnapshot,
+        location: LocationServiceSnapshot,
+        now: Date
+    ) -> ConnectionHealth {
+        ConnectionHealthEvaluator.evaluate(
+            packetsSent: camera.packetsSent,
+            lastSentAt: camera.lastSentAt,
+            locationTimestamp: location.currentLocation?.timestamp,
+            horizontalAccuracy: location.currentLocation?.horizontalAccuracy,
+            now: now
         )
     }
 
@@ -597,13 +698,9 @@ final class CameraGPSLinkAppModel: ObservableObject {
         pendingStart: Bool,
         transientError: String?,
         allowsExperimentalApproval: Bool,
-        now: Date
+        health: ConnectionHealth
     ) -> GeotaggingSnapshot {
         let currentLocation = location.currentLocation
-        let hasUsableLocation =
-            currentLocation.map {
-                $0.horizontalAccuracy >= 0 && CameraBLEManager.isLocationFresh($0.timestamp, relativeTo: now)
-            } ?? false
         return GeotaggingSnapshot(
             cameraState: camera.state,
             cameraName: camera.discoveredCameraName,
@@ -611,8 +708,10 @@ final class CameraGPSLinkAppModel: ObservableObject {
             packetsSent: camera.packetsSent,
             lastSentAt: camera.lastSentAt,
             locationPermission: location.permission,
-            hasLocation: hasUsableLocation,
-            horizontalAccuracy: hasUsableLocation ? currentLocation?.horizontalAccuracy : nil,
+            hasLocation: health.locationFix.isWritable,
+            horizontalAccuracy: currentLocation?.horizontalAccuracy,
+            locationTimestamp: currentLocation?.timestamp,
+            health: health,
             backgroundEnabled: settings.backgroundLinkEnabled,
             isForeground: isForeground,
             pendingReconnectArmed: camera.pendingReconnectArmed,

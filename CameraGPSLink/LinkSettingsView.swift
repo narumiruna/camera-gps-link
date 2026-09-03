@@ -4,6 +4,8 @@ struct LinkSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     let current: LinkSettings
     let allowsBackground: Bool
+    let notificationAuthorization: HealthNotificationAuthorization
+    let openSystemSettings: () -> Void
     let apply: (LinkSettings) -> Bool
 
     @State private var draft: LinkSettingsDraft
@@ -13,10 +15,14 @@ struct LinkSettingsView: View {
     init(
         current: LinkSettings,
         allowsBackground: Bool,
+        notificationAuthorization: HealthNotificationAuthorization,
+        openSystemSettings: @escaping () -> Void,
         apply: @escaping (LinkSettings) -> Bool
     ) {
         self.current = current
         self.allowsBackground = allowsBackground
+        self.notificationAuthorization = notificationAuthorization
+        self.openSystemSettings = openSystemSettings
         self.apply = apply
         _draft = State(initialValue: LinkSettingsDraft(current: current))
     }
@@ -48,6 +54,25 @@ struct LinkSettingsView: View {
                     .focusable()
                 } header: {
                     Text("Location Updates")
+                }
+
+                Section {
+                    Toggle("Health Alerts", isOn: $draft.value.healthAlertsEnabled)
+                        .accessibilityIdentifier("health-alerts-toggle")
+                    LabeledContent("Notification Permission", value: notificationAuthorization.label)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("health-alerts-permission")
+                    if draft.value.healthAlertsEnabled, notificationAuthorization == .denied {
+                        Button("Open iOS Settings", action: openSystemSettings)
+                            .accessibilityIdentifier("health-alerts-open-settings")
+                    }
+                } header: {
+                    Text("Health Alerts")
+                } footer: {
+                    Text(
+                        "Warns about interrupted or outdated camera location updates. "
+                            + "Notifications do not keep the app running."
+                    )
                 }
 
                 Section("Effect Preview") {

@@ -28,10 +28,11 @@ The Python `sonygeotag` CLI, BLE diagnostics, and EXIF verification tools are ma
 3. Grant the requested Location and Bluetooth permissions.
 4. Wait for identity, capability, and `DD21` validation.
 5. Wait for **Ready to Geotag** before taking photos that require location data.
-6. Tap **Stop Geotagging** when the shooting session ends so the app can clean up the camera controls it acquired.
+6. Optionally enable **Health Alerts** in **Link Settings** to receive local warnings about interrupted or outdated camera location updates.
+7. Tap **Stop Geotagging** when the shooting session ends so the app can clean up the camera controls it acquired.
 
 **Ready to Geotag** appears only after the camera receives the first successful location packet in the current session.
-The public Release build remains foreground-only until background qualification passes. Development and qualification background updates remain subject to iOS permissions and scheduling and cannot guarantee a fresh fix immediately before every photo.
+The public Release build remains foreground-only until background qualification passes. If Health Alerts are enabled, leaving the app stops that foreground-only session and posts a local reminder. Development and qualification background updates remain subject to iOS permissions and scheduling and cannot guarantee a fresh fix immediately before every photo. Notifications report loss of coverage; they do not keep Bluetooth or Location running.
 
 See the [`iOS app guide`](docs/ios-app.md) for the complete workflow, settings, permission states, diagnostics behavior, and platform limitations.
 
@@ -85,3 +86,4 @@ justfile                  Local iOS commands
 - Public Release background operation is disabled until physical qualification passes; development and qualification background execution remains opportunistic and can be prevented by force-quitting the app.
 - Real BLE behavior, camera writes, background restoration, and battery use require physical-device testing.
 - Camera GPS Link updates the camera's cached location for new photos and does not modify existing images.
+- Health Alerts are opt-in local notifications. iOS can delay or suppress their delivery, so they do not guarantee geotagging coverage.

@@ -39,10 +39,22 @@ enum LocationUpdateMode: String, CaseIterable, Identifiable {
 struct LinkSettings: Equatable {
     var connectionAvailability: ConnectionAvailability
     var locationUpdates: LocationUpdateMode
+    var healthAlertsEnabled: Bool
+
+    init(
+        connectionAvailability: ConnectionAvailability,
+        locationUpdates: LocationUpdateMode,
+        healthAlertsEnabled: Bool = false
+    ) {
+        self.connectionAvailability = connectionAvailability
+        self.locationUpdates = locationUpdates
+        self.healthAlertsEnabled = healthAlertsEnabled
+    }
 
     static let `default` = LinkSettings(
         connectionAvailability: .whileAppIsOpen,
-        locationUpdates: .batterySaver
+        locationUpdates: .batterySaver,
+        healthAlertsEnabled: false
     )
 
     var backgroundLinkEnabled: Bool {
@@ -71,7 +83,8 @@ struct LinkSettings: Equatable {
             case .whileAppIsOpen:
                 "Runs only while Camera GPS Link is open."
             case .continueInBackground:
-                "Keeps reconnecting when possible and requires Always Location permission. iOS may pause it after force-quit."
+                "Keeps reconnecting when possible and requires Always Location permission. "
+                    + "iOS may pause it after force-quit."
             }
         let updates =
             switch locationUpdates {
@@ -80,7 +93,11 @@ struct LinkSettings: Equatable {
             case .bestAccuracy:
                 "Uses the best available GPS accuracy and sends about every 30 seconds, using more battery."
             }
-        return "\(delivery) \(updates)"
+        let alerts =
+            healthAlertsEnabled
+            ? "Health Alerts are on and require notification permission."
+            : "Health Alerts are off."
+        return "\(delivery) \(updates) \(alerts)"
     }
 }
 
@@ -105,6 +122,7 @@ struct LinkSettingsDraft: Equatable {
 enum LinkSettingsKeys {
     static let backgroundLinkEnabled = "backgroundLinkEnabled"
     static let lowPowerModeEnabled = "lowPowerModeEnabled"
+    static let healthAlertsEnabled = "healthAlertsEnabled"
 }
 
 protocol LinkSettingsStoring {
@@ -131,9 +149,11 @@ struct UserDefaultsLinkSettingsStore: LinkSettingsStoring {
             defaults.set(false, forKey: LinkSettingsKeys.backgroundLinkEnabled)
         }
         let lowPowerEnabled = defaults.object(forKey: LinkSettingsKeys.lowPowerModeEnabled) as? Bool ?? true
+        let healthAlertsEnabled = defaults.object(forKey: LinkSettingsKeys.healthAlertsEnabled) as? Bool ?? false
         return LinkSettings(
             connectionAvailability: backgroundEnabled ? .continueInBackground : .whileAppIsOpen,
-            locationUpdates: lowPowerEnabled ? .batterySaver : .bestAccuracy
+            locationUpdates: lowPowerEnabled ? .batterySaver : .bestAccuracy,
+            healthAlertsEnabled: healthAlertsEnabled
         )
     }
 
@@ -141,5 +161,6 @@ struct UserDefaultsLinkSettingsStore: LinkSettingsStoring {
         let restricted = settings.restrictingBackground(to: allowsBackground)
         defaults.set(restricted.backgroundLinkEnabled, forKey: LinkSettingsKeys.backgroundLinkEnabled)
         defaults.set(restricted.lowPowerModeEnabled, forKey: LinkSettingsKeys.lowPowerModeEnabled)
+        defaults.set(restricted.healthAlertsEnabled, forKey: LinkSettingsKeys.healthAlertsEnabled)
     }
 }

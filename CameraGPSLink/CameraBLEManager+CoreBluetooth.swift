@@ -485,8 +485,8 @@ extension CameraBLEManager {
     static func isLocationFresh(
         _ timestamp: Date,
         relativeTo now: Date,
-        maximumAge: TimeInterval = 120,
-        maximumFutureSkew: TimeInterval = 10
+        maximumAge: TimeInterval = ConnectionHealthPolicy.locationFixMaximumAge,
+        maximumFutureSkew: TimeInterval = ConnectionHealthPolicy.locationFixMaximumFutureSkew
     ) -> Bool {
         let age = now.timeIntervalSince(timestamp)
         return age >= -maximumFutureSkew && age <= maximumAge

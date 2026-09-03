@@ -49,24 +49,27 @@ struct GeotaggingHomeView<Diagnostics: View>: View {
                     .accessibilityIdentifier("connection-progress")
             }
 
-            if let notice = state.notice {
+            ForEach(state.notices) { notice in
                 VStack(alignment: .leading, spacing: 8) {
-                    Label(notice, systemImage: "exclamationmark.triangle.fill")
+                    Label(notice.title, systemImage: "exclamationmark.triangle.fill")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.orange)
-                    Text("Foreground geotagging still works. Allow Always Location for background updates.")
+                        .foregroundStyle(.primary)
+                    Text(notice.message)
                         .font(.footnote)
                         .foregroundStyle(.primary)
-                    if let action = state.noticeAction {
-                        Button("Allow Background Location") {
+                    if let action = notice.action, let actionLabel = notice.actionLabel {
+                        Button(actionLabel) {
                             perform(action)
                         }
                         .buttonStyle(.bordered)
-                        .accessibilityIdentifier("background-permission-action")
+                        .tint(.primary)
+                        .accessibilityIdentifier("notice-action-\(notice.id)")
                     }
                 }
                 .padding(12)
-                .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("notice-\(notice.id)")
             }
 
             actionButtons
