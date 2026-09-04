@@ -23,8 +23,10 @@ During a foreground connection attempt, **Cancel** remains available. Camera sea
 
 While ready:
 
-- **Send Current Location** requests an immediate refresh.
+- **Send Current Location** requests an immediate refresh when the iPhone has a writable fix.
 - **Stop Geotagging** safely closes the location link. It is reversible and does not delete settings or camera identity.
+
+The Readiness rows distinguish the camera's last confirmed update from the current iPhone fix. A camera update becomes delayed after five minutes. An iPhone fix is shown as stale after 120 seconds, invalid when its accuracy or timestamp cannot be used, and low accuracy above 100 m. Low accuracy is advisory and does not block a valid camera write. A fresh camera cache can remain usable while the app waits for a better or newer iPhone fix.
 
 ## Link Settings
 
@@ -42,7 +44,19 @@ The public Release build hides **Continue in Background**, migrates a stale enab
 - **Battery Saver** — targets approximately 100 m location accuracy and sends about every 120 seconds.
 - **Best Accuracy** — uses the best available GPS accuracy and sends about every 30 seconds, using more battery.
 
-The Effect Preview describes the concrete permission, accuracy, frequency, and battery consequences before Apply. Both choices are applied together. If application fails, the previous valid settings remain active.
+### Health Alerts
+
+**Health Alerts** are off by default. Enabling them through Apply requests iOS notification permission in context; merely launching the app or opening Link Settings does not prompt. If a transient failure leaves permission at **Not Requested**, Link Settings offers **Retry Notification Permission**. If permission is blocked, the preference remains on so Link Settings can explain the mismatch and offer **Open iOS Settings**.
+
+Health Alerts use local notifications with generic text and warn about three conditions:
+
+- a previously ready camera link remains interrupted for more than 10 seconds;
+- the camera's last confirmed location reaches five minutes old;
+- a ready foreground-only session stops because the app entered the background.
+
+A reconnect cancels any pending interruption alert and schedules the next stale-update deadline. The app does not post a separate recovery alert because iOS does not provide a race-free delivery confirmation for the earlier warning. Stop, Cancel, initial connection failure, unsupported profiles, and pairing do not send health alerts. Notification delivery is controlled by iOS and does not keep Bluetooth, Location, or the app running.
+
+The Effect Preview describes the concrete permission, accuracy, frequency, battery, and alert consequences before Apply. All choices are applied together. If application fails, the previous valid settings remain active.
 
 Within the current app identity, updates keep the same stored behavior: Background defaults off, Battery Saver defaults on, and the remembered CoreBluetooth peripheral remains unchanged. The bundle identifier changed from an earlier development identity to `dev.narumi.cameragpslink`; iOS treats those as separate apps, so sandboxed settings from an older development install do not migrate automatically.
 
@@ -65,11 +79,12 @@ Background reconnect is shown as **Waiting for Camera**, not as an endless foreg
 
 - sanitized detected model, firmware, protocol, modern/legacy profile, and confidence;
 - packets sent, strict DD11/DD21 packet mode, operation order, cleanup status, update interval, and pending reconnect;
+- Health Alerts preference, notification permission, health classification, and managed alert deadline;
 - pairing state and last-send time, without exposing the private remembered peripheral identifier;
 - location permission, mode, coordinate, accuracy, and fix time;
 - a bounded 120-line debug log.
 
-Diagnostic logs can include recent coordinates. Review the warning and log contents before using **Copy Diagnostic Log** or sharing the result.
+Diagnostic logs can include recent coordinates. Review the warning and log contents before using **Copy Diagnostic Log** or sharing the result. Local health notification text never includes coordinates, peripheral identifiers, raw camera identity, firmware, or BLE payloads.
 
 ## Sony protocol behavior
 
@@ -129,4 +144,5 @@ A physical iPhone is still required to validate real CoreBluetooth behavior, bac
 - A7 III, A7 IV, A6700, A7R V, A7S III, A1, ZV-E1, and ZV-E10 II remain unverified until their exact rows have independent evidence.
 - Public Release background operation is disabled until physical qualification passes. Development and qualification background execution remains opportunistic and cannot guarantee a fresh location immediately before every shutter release.
 - The app updates the camera’s cached location for new photos; it does not modify existing images.
-- Real BLE and background wake behavior cannot be fully simulated by XCUITest.
+- Real BLE, notification delivery, and background wake behavior cannot be fully simulated by XCUITest.
+- Local Health Alerts can be delayed or suppressed by iOS and never guarantee geotagging coverage.

@@ -166,9 +166,9 @@ final class CameraGPSLinkUITests: XCTestCase {
         selectSetting("Best Accuracy")
         app.buttons["settings-apply"].tap()
 
-        XCTAssertTrue(
-            app.staticTexts["Changes couldn’t be applied. Your previous settings are still active."].waitForExistence(
-                timeout: 2))
+        let error = app.staticTexts["Changes couldn’t be applied. Your previous settings are still active."]
+        scrollUntilVisible(error)
+        XCTAssertTrue(error.exists)
         app.buttons["settings-cancel"].tap()
         XCTAssertTrue(app.staticTexts["While Open · Battery Saver"].waitForExistence(timeout: 2))
     }
@@ -329,7 +329,7 @@ final class CameraGPSLinkUITests: XCTestCase {
     }
 
     private func scrollUntilVisible(_ element: XCUIElement) {
-        for _ in 0..<8 {
+        for _ in 0..<12 {
             if element.exists && element.isHittable { return }
             app.swipeUp()
         }

@@ -12,8 +12,10 @@ Other camera models are not supported by the public iOS release.
 - Make the camera's Bluetooth location link available for pairing.
 - Keep the app open while establishing the first connection.
 - Wait for **Ready to Geotag** before relying on the camera's cached location.
+- If Health Alerts are enabled but unavailable, open **Link Settings** and check **Notification Permission**. Use **Retry Notification Permission** when permission remains not requested, or **Open iOS Settings** when permission is blocked.
+- Treat **iPhone Location Is Stale**, **Low Location Accuracy**, and **Location Update Delayed** as separate conditions; the Readiness rows identify whether the phone fix or camera cache needs attention.
 
-Background operation is disabled in the first public Release until physical qualification passes. Development and qualification background behavior depends on iOS permissions and system scheduling and cannot guarantee an update immediately before every photo.
+Background operation is disabled in the first public Release until physical qualification passes. An enabled Health Alert can report that a foreground-only session stopped after the app entered the background, but the notification does not keep the session running. Development and qualification background behavior depends on iOS permissions and system scheduling and cannot guarantee an update immediately before every photo.
 
 ## Contact
 
@@ -21,4 +23,4 @@ Search existing reports or [open a support issue](https://github.com/narumiruna/
 Include the iPhone model, iOS version, camera model, and the visible app status.
 
 The app's diagnostic log can help investigate connection problems, but it may contain recent coordinates.
-Review and redact sensitive information before posting or sharing a diagnostic log.
+Review and redact sensitive information before posting or sharing a diagnostic log. Health notification text is local and generic, but iOS may delay or suppress delivery.

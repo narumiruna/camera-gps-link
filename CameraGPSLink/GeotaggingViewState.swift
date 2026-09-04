@@ -86,6 +86,14 @@ struct ReadinessItem: Identifiable, Equatable {
     let isReady: Bool
 }
 
+struct StatusNotice: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let message: String
+    let action: GeotaggingAction?
+    let actionLabel: String?
+}
+
 struct GeotaggingSnapshot: Equatable {
     var cameraState: CameraConnectionState
     var cameraName: String?
@@ -95,6 +103,8 @@ struct GeotaggingSnapshot: Equatable {
     var locationPermission: LocationPermission
     var hasLocation: Bool
     var horizontalAccuracy: CLLocationAccuracy?
+    var locationTimestamp: Date?
+    var health: ConnectionHealth?
     var backgroundEnabled: Bool
     var isForeground: Bool
     var pendingReconnectArmed: Bool
@@ -121,39 +131,46 @@ struct GeotaggingViewState: Equatable {
     var secondaryActionLabel: String?
     var showsProgress: Bool
     var lastUpdateText: String
-    var notice: String?
-    var noticeAction: GeotaggingAction?
+    var notices: [StatusNotice]
+
+    var notice: String? {
+        notices.first(where: { $0.id == "background-permission" })?.title
+    }
+
+    var noticeAction: GeotaggingAction? {
+        notices.first(where: { $0.id == "background-permission" })?.action
+    }
 
     static func make(from snapshot: GeotaggingSnapshot, now: Date = Date()) -> GeotaggingViewState {
-        let phase = phase(for: snapshot, now: now)
+        let health = resolvedHealth(for: snapshot, now: now)
+        let phase = phase(for: snapshot, health: health)
         let content = content(for: phase, snapshot: snapshot, now: now)
-        let primary = primaryAction(for: phase, snapshot: snapshot)
+        let primary = primaryAction(for: phase, snapshot: snapshot, health: health)
         let lastUpdate = relativeUpdate(snapshot.lastSentAt, now: now)
-        let needsBackgroundPermission =
-            snapshot.backgroundEnabled
-            && snapshot.locationPermission != .always
-            && snapshot.locationPermission.allowsForegroundLocation
 
         return GeotaggingViewState(
             phase: phase,
             title: content.title,
             message: snapshot.transientError ?? content.message,
-            readiness: readiness(for: snapshot, lastUpdate: lastUpdate),
+            readiness: readiness(for: snapshot, health: health, lastUpdate: lastUpdate, now: now),
             primaryAction: primary,
             primaryActionLabel: label(for: primary),
-            secondaryAction: phase == .ready ? .sendNow : (phase == .approvalRequired ? .cancel : nil),
-            secondaryActionLabel: phase == .ready
+            secondaryAction: phase == .ready && health.locationFix.isWritable
+                ? .sendNow : (phase == .approvalRequired ? .cancel : nil),
+            secondaryActionLabel: phase == .ready && health.locationFix.isWritable
                 ? "Send Current Location" : (phase == .approvalRequired ? "Cancel" : nil),
             showsProgress: [
                 .requestingPermission, .searching, .connecting, .preparing, .sendingFirstLocation, .stopping,
             ].contains(phase),
             lastUpdateText: lastUpdate,
-            notice: needsBackgroundPermission ? "Background Permission Needed" : nil,
-            noticeAction: needsBackgroundPermission ? .requestBackgroundPermission : nil
+            notices: notices(for: snapshot, health: health)
         )
     }
 
-    private static func phase(for snapshot: GeotaggingSnapshot, now: Date) -> GeotaggingPhase {
+    private static func phase(
+        for snapshot: GeotaggingSnapshot,
+        health: ConnectionHealth
+    ) -> GeotaggingPhase {
         if snapshot.isRequestingPermission {
             return .requestingPermission
         }
@@ -182,13 +199,10 @@ struct GeotaggingViewState: Equatable {
         case .discovering, .enablingLocation, .pairing:
             return .preparing
         case .linked:
-            guard snapshot.packetsSent > 0, let lastSentAt = snapshot.lastSentAt else {
-                return snapshot.hasLocation ? .sendingFirstLocation : .waitingForLocation
+            guard snapshot.packetsSent > 0, snapshot.lastSentAt != nil else {
+                return health.locationFix.isWritable ? .sendingFirstLocation : .waitingForLocation
             }
-            if now.timeIntervalSince(lastSentAt) > 5 * 60 {
-                return .needsAttention
-            }
-            return .ready
+            return health.cameraUpdate.isFresh ? .ready : .needsAttention
         case .stopping:
             return .stopping
         case .stopped:
@@ -254,7 +268,7 @@ struct GeotaggingViewState: Equatable {
                 return ("Bluetooth Unavailable", "Turn on Bluetooth and keep Camera GPS Link open, then retry.")
             }
             if snapshot.cameraState == .linked, let lastSentAt = snapshot.lastSentAt,
-                now.timeIntervalSince(lastSentAt) > 5 * 60
+                now.timeIntervalSince(lastSentAt) > ConnectionHealthPolicy.cameraUpdateMaximumAge
             {
                 return (
                     "Location Update Delayed", "The camera’s last location is out of date. Send again or reconnect."
@@ -266,7 +280,8 @@ struct GeotaggingViewState: Equatable {
 
     private static func primaryAction(
         for phase: GeotaggingPhase,
-        snapshot: GeotaggingSnapshot
+        snapshot: GeotaggingSnapshot,
+        health: ConnectionHealth
     ) -> GeotaggingAction? {
         switch phase {
         case .notConnected, .stopped:
@@ -281,7 +296,10 @@ struct GeotaggingViewState: Equatable {
             if snapshot.locationPermission == .denied || snapshot.locationPermission == .restricted {
                 return .openSettings
             }
-            return snapshot.cameraState == .linked ? .sendNow : .retry
+            if snapshot.cameraState == .linked {
+                return health.locationFix.isWritable ? .sendNow : .stop
+            }
+            return .retry
         case .waitingInBackground, .stopping:
             return nil
         }
@@ -310,68 +328,7 @@ struct GeotaggingViewState: Equatable {
         }
     }
 
-    private static func readiness(for snapshot: GeotaggingSnapshot, lastUpdate: String) -> [ReadinessItem] {
-        let cameraReady = snapshot.cameraState == .linked
-        let cameraDetail =
-            cameraReady
-            ? "Connected · \(snapshot.cameraName ?? snapshot.targetName)"
-            : cameraStatus(snapshot.cameraState)
-        let locationReady = snapshot.hasLocation && snapshot.locationPermission.allowsForegroundLocation
-        let accuracy = snapshot.horizontalAccuracy.map { " · ±\(Int($0.rounded())) m" } ?? ""
-        let locationDetail = locationReady ? "Ready\(accuracy)" : snapshot.locationPermission.label
-        let sent = snapshot.packetsSent > 0 && snapshot.lastSentAt != nil
-
-        return [
-            ReadinessItem(
-                id: "camera",
-                title: "Camera",
-                detail: cameraDetail,
-                symbolName: cameraReady ? "camera.fill" : "camera",
-                isReady: cameraReady
-            ),
-            ReadinessItem(
-                id: "location",
-                title: "iPhone Location",
-                detail: locationDetail,
-                symbolName: locationReady ? "location.fill" : "location",
-                isReady: locationReady
-            ),
-            ReadinessItem(
-                id: "update",
-                title: "Last Camera Update",
-                detail: sent ? lastUpdate : "Not sent yet",
-                symbolName: sent ? "checkmark.circle.fill" : "clock",
-                isReady: sent
-            ),
-        ]
-    }
-
-    private static func cameraStatus(_ state: CameraConnectionState) -> String {
-        switch state {
-        case .idle, .stopped:
-            "Not connected"
-        case .bluetoothUnavailable:
-            "Bluetooth unavailable"
-        case .scanning:
-            "Searching"
-        case .connecting:
-            "Connecting"
-        case .discovering, .enablingLocation, .pairing:
-            "Preparing"
-        case .awaitingApproval:
-            "Approval required"
-        case .unsupported:
-            "Unsupported"
-        case .linked:
-            "Connected"
-        case .stopping:
-            "Stopping"
-        case .failed:
-            "Needs attention"
-        }
-    }
-
-    private static func relativeUpdate(_ date: Date?, now: Date) -> String {
+    static func relativeUpdate(_ date: Date?, now: Date) -> String {
         guard let date else { return "Never" }
         let seconds = max(0, Int(now.timeIntervalSince(date)))
         if seconds < 5 { return "Just now" }

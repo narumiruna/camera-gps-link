@@ -70,8 +70,8 @@ final class CameraBLEManager: NSObject, ObservableObject {
     var reconnectRetryTimer: Timer?
     var foregroundTimeoutSession: ForegroundConnectionTimeoutSession!
     let operationTimeout: TimeInterval = 12
-    let maximumLocationAge: TimeInterval = 120
-    let maximumFutureLocationSkew: TimeInterval = 10
+    let maximumLocationAge = ConnectionHealthPolicy.locationFixMaximumAge
+    let maximumFutureLocationSkew = ConnectionHealthPolicy.locationFixMaximumFutureSkew
     let diagnosticsStore: DiagnosticsLogStore
     let identityStore: any SonyValidatedIdentityStoring
     let releasePolicy: SonyReleasePolicy

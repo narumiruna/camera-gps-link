@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Effective date: August 21, 2026
+Effective date: September 4, 2026
 
 Camera GPS Link sends location information from an iPhone directly to a compatible camera over Bluetooth.
 This policy explains how the app handles information.
@@ -24,6 +24,10 @@ Camera GPS Link uses Bluetooth to discover, remember, connect to, and send locat
 The app stores its settings and the identifier of the remembered camera locally on the iPhone using Apple system storage.
 These values are not uploaded to the developer.
 
+## Local Notifications
+
+Health Alerts are optional local notifications managed by iOS. The app stores the alert preference locally and schedules generic connection-health messages on the device. Notification text does not contain coordinates, peripheral identifiers, raw camera identity, firmware, or Bluetooth payloads. Camera GPS Link does not use a push notification service and does not send notification data to the developer.
+
 ## Diagnostics
 
 The app maintains a bounded diagnostic log in memory to help troubleshoot camera and location status.
@@ -34,7 +38,7 @@ Users should review and redact sensitive coordinates before sharing a diagnostic
 
 ## Retention and Deletion
 
-App settings and the remembered camera identifier remain on the iPhone until the app updates them or the user uninstalls the app.
+App settings, the remembered camera identifier, and pending local Health Alerts remain on the iPhone until the app updates or removes them or the user uninstalls the app.
 Diagnostic logs are held only in app memory and are not retained after the app process ends.
 The app does not maintain a developer-accessible copy of location information.
 A connected camera may cache location information or add it to newly captured photos according to the camera's own behavior.

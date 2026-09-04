@@ -22,6 +22,7 @@
             var location: CLLocation?
             var persistenceFails = false
             var releasePolicy = SonyReleasePolicy.current
+            var notificationAuthorization: HealthNotificationAuthorization = .allowed
 
             switch scenario {
             case "not-connected", "empty-diagnostics":
@@ -98,6 +99,46 @@
                 for index in 0..<140 {
                     diagnostics.append("log \(index)")
                 }
+            case "health-alerts-allowed", "health-alerts-blocked", "health-alerts-not-determined",
+                "health-alerts-foreground-suspension":
+                settings.healthAlertsEnabled = true
+                if scenario == "health-alerts-blocked" {
+                    notificationAuthorization = .denied
+                } else if scenario == "health-alerts-not-determined" {
+                    notificationAuthorization = .notDetermined
+                } else {
+                    notificationAuthorization = .allowed
+                }
+                camera.state = .linked
+                camera.packetsSent = 1
+                camera.lastSentAt = now
+                camera.activeLinkIntent = true
+                location = fixtureLocation(now: now)
+            case "stale-location", "low-accuracy", "future-location", "invalid-location", "coexisting-notices":
+                settings.healthAlertsEnabled = true
+                camera.state = .linked
+                camera.packetsSent = 1
+                camera.lastSentAt = now.addingTimeInterval(-12)
+                camera.activeLinkIntent = true
+                if scenario == "stale-location" || scenario == "coexisting-notices" {
+                    location = fixtureLocation(now: now, age: 121)
+                } else if scenario == "low-accuracy" {
+                    location = fixtureLocation(now: now, accuracy: 101)
+                } else if scenario == "future-location" {
+                    location = fixtureLocation(now: now, age: -11)
+                } else {
+                    location = fixtureLocation(now: now, accuracy: -1)
+                }
+                if scenario == "coexisting-notices" {
+                    settings.connectionAvailability = .continueInBackground
+                }
+            case "stale-camera-update":
+                settings.healthAlertsEnabled = true
+                camera.state = .linked
+                camera.packetsSent = 1
+                camera.lastSentAt = now.addingTimeInterval(-301)
+                camera.activeLinkIntent = true
+                location = fixtureLocation(now: now)
             default:
                 return nil
             }
@@ -113,24 +154,36 @@
                 )
             )
             let store = UITestSettingsStore(settings: settings, shouldFail: persistenceFails)
-            return CameraGPSLinkAppModel(
+            let notificationService = UITestHealthNotificationService(
+                authorizationStatus: notificationAuthorization
+            )
+            let model = CameraGPSLinkAppModel(
                 cameraService: cameraService,
                 locationService: locationService,
                 settingsStore: store,
                 diagnosticsStore: diagnostics,
+                notificationService: notificationService,
                 now: { now },
                 openSettings: {},
                 releasePolicy: releasePolicy
             )
+            if scenario == "health-alerts-foreground-suspension" {
+                model.handleScenePhase(.background)
+            }
+            return model
         }
 
-        private static func fixtureLocation(now: Date) -> CLLocation {
+        private static func fixtureLocation(
+            now: Date,
+            age: TimeInterval = 0,
+            accuracy: CLLocationAccuracy = 8
+        ) -> CLLocation {
             CLLocation(
                 coordinate: CLLocationCoordinate2D(latitude: 35.681236, longitude: 139.767125),
                 altitude: 10,
-                horizontalAccuracy: 8,
+                horizontalAccuracy: accuracy,
                 verticalAccuracy: 10,
-                timestamp: now
+                timestamp: now.addingTimeInterval(-age)
             )
         }
     }
@@ -245,6 +298,30 @@
         func stopUpdating() {
             snapshot.isUpdating = false
         }
+    }
+
+    @MainActor
+    private final class UITestHealthNotificationService: HealthNotificationServicing {
+        private(set) var authorizationStatus: HealthNotificationAuthorization
+        var onAuthorizationChange: ((HealthNotificationAuthorization) -> Void)?
+        var onError: ((HealthNotificationRequest?, String) -> Void)?
+
+        init(authorizationStatus: HealthNotificationAuthorization) {
+            self.authorizationStatus = authorizationStatus
+        }
+
+        func refreshAuthorization() {}
+
+        func requestAuthorization() {
+            guard authorizationStatus == .notDetermined else { return }
+            authorizationStatus = .allowed
+            onAuthorizationChange?(.allowed)
+        }
+
+        func schedule(_ request: HealthNotificationRequest) {}
+        func remove(_ kinds: Set<HealthNotificationKind>) {}
+        func removeLegacyRecoveryNotification() {}
+        func removeAllHealthNotifications() {}
     }
 
     private final class UITestSettingsStore: LinkSettingsStoring {

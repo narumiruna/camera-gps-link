@@ -23,7 +23,10 @@ struct ContentView: View {
             .sheet(isPresented: $showsSettings) {
                 LinkSettingsView(
                     current: appModel.settings,
-                    allowsBackground: appModel.allowsBackground
+                    allowsBackground: appModel.allowsBackground,
+                    notificationAuthorization: appModel.notificationAuthorization,
+                    requestNotificationAuthorization: appModel.requestHealthAlertAuthorization,
+                    openSystemSettings: appModel.openSettings
                 ) { settings in
                     appModel.applySettings(settings)
                 }
