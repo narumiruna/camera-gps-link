@@ -46,6 +46,7 @@ final class ConnectionHealthMonitor {
     private var didScheduleRecoveryForOutage = false
     private var preservesForegroundSuspension = false
     private var didInitialReconcile = false
+    private var didReconcileRestoredRequests = false
 
     init(notifications: HealthNotificationServicing, diagnostics: DiagnosticsLogStore) {
         self.notifications = notifications
@@ -134,8 +135,9 @@ final class ConnectionHealthMonitor {
         let hasConfirmedUpdate = context.packetsSent > 0 && context.lastSentAt != nil
         let recoveredWithNewUpdate = hasConfirmedUpdate && context.cameraState == .linked && outageDueAt != nil
 
-        if hasConfirmedUpdate, outageDueAt == nil, scheduledStaleFor != context.lastSentAt {
-            remove([.recovery])
+        if hasConfirmedUpdate, context.cameraState == .linked, !didReconcileRestoredRequests {
+            remove([.linkLoss, .foregroundSuspension, .recovery])
+            didReconcileRestoredRequests = true
         }
         if recoveredWithNewUpdate {
             recover(using: context)
@@ -230,6 +232,7 @@ final class ConnectionHealthMonitor {
     private func removeAll(reason: String) {
         let hadRequests = !snapshot.managedRequests.isEmpty
         notifications.removeAllHealthNotifications()
+        didReconcileRestoredRequests = true
         managedRequests.removeAll()
         snapshot.managedRequests.removeAll()
         if hadRequests {

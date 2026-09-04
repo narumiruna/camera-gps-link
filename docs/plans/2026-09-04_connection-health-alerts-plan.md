@@ -119,6 +119,10 @@ flowchart LR
 - [x] Associate asynchronous notification scheduling failures with a unique request generation so a stale callback cannot clear a newer same-kind request; verified by obsolete/current generation ordering in `ConnectionHealthMonitorTests` and the passing full gate.
 - [x] Preserve an active outage after a link-loss scheduling failure and retry on a later monitor update without a tight callback loop; verified that a later update retains the original deadline with a new generation in `ConnectionHealthMonitorTests` and the passing full gate.
 
+### 10. Address second PR review round
+
+- [x] Preserve unknown health requests only while a restored active intent is still reconnecting, then remove restored link-loss, foreground-suspension, and recovery requests when a fresh confirmed `DD11` establishes readiness; verified by one-time restored-request cancellation in `ConnectionHealthMonitorTests` and the passing `just check` gate (99 unit tests, 25 XCUITests).
+
 ## Risks
 
 - `UNUserNotificationCenter` requests outlive the process, so stale requests can become misleading unless every send, stop, setting change, authorization change, and restoration path reconciles stable identifiers.

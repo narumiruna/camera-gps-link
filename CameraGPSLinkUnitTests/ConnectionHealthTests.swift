@@ -224,13 +224,34 @@ final class ConnectionHealthMonitorTests: XCTestCase {
         XCTAssertEqual(notifications.scheduled.filter { $0.kind == .linkLoss }.count, 1)
     }
 
-    func testRestoredIntentKeepsExistingRequestsUntilNextConfirmedSend() {
+    func testRestoredIntentKeepsThenFreshSendClearsUnknownOutageRequests() {
         let (monitor, notifications) = makeMonitor()
-
         monitor.update(context(state: .connecting, activeIntent: true, isForeground: false, at: now))
 
         XCTAssertEqual(notifications.removeAllCount, 0)
         XCTAssertTrue(notifications.scheduled.isEmpty)
+
+        let sentAt = now.addingTimeInterval(1)
+        monitor.update(readyContext(at: sentAt, sentAt: sentAt))
+
+        XCTAssertTrue(
+            notifications.removed.contains(
+                Set([.linkLoss, .foregroundSuspension, .recovery])
+            )
+        )
+        XCTAssertEqual(notifications.scheduled.last?.kind, .staleCameraUpdate)
+        let reconciliationCount = notifications.removed.filter {
+            $0 == Set([.linkLoss, .foregroundSuspension, .recovery])
+        }.count
+
+        monitor.update(readyContext(at: sentAt, sentAt: sentAt))
+
+        XCTAssertEqual(
+            notifications.removed.filter {
+                $0 == Set([.linkLoss, .foregroundSuspension, .recovery])
+            }.count,
+            reconciliationCount
+        )
     }
 
     func testInitialFailureAndIntentionalEndNeverScheduleLoss() {
