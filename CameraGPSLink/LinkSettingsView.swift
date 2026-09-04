@@ -5,6 +5,7 @@ struct LinkSettingsView: View {
     let current: LinkSettings
     let allowsBackground: Bool
     let notificationAuthorization: HealthNotificationAuthorization
+    let requestNotificationAuthorization: () -> Void
     let openSystemSettings: () -> Void
     let apply: (LinkSettings) -> Bool
 
@@ -16,12 +17,14 @@ struct LinkSettingsView: View {
         current: LinkSettings,
         allowsBackground: Bool,
         notificationAuthorization: HealthNotificationAuthorization,
+        requestNotificationAuthorization: @escaping () -> Void,
         openSystemSettings: @escaping () -> Void,
         apply: @escaping (LinkSettings) -> Bool
     ) {
         self.current = current
         self.allowsBackground = allowsBackground
         self.notificationAuthorization = notificationAuthorization
+        self.requestNotificationAuthorization = requestNotificationAuthorization
         self.openSystemSettings = openSystemSettings
         self.apply = apply
         _draft = State(initialValue: LinkSettingsDraft(current: current))
@@ -62,6 +65,13 @@ struct LinkSettingsView: View {
                     LabeledContent("Notification Permission", value: notificationAuthorization.label)
                         .accessibilityElement(children: .combine)
                         .accessibilityIdentifier("health-alerts-permission")
+                    if draft.value.healthAlertsEnabled,
+                        current.healthAlertsEnabled,
+                        notificationAuthorization == .notDetermined
+                    {
+                        Button("Retry Notification Permission", action: requestNotificationAuthorization)
+                            .accessibilityIdentifier("health-alerts-retry-permission")
+                    }
                     if draft.value.healthAlertsEnabled, notificationAuthorization == .denied {
                         Button("Open iOS Settings", action: openSystemSettings)
                             .accessibilityIdentifier("health-alerts-open-settings")

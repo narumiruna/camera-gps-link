@@ -25,6 +25,7 @@ struct ContentView: View {
                     current: appModel.settings,
                     allowsBackground: appModel.allowsBackground,
                     notificationAuthorization: appModel.notificationAuthorization,
+                    requestNotificationAuthorization: appModel.requestHealthAlertAuthorization,
                     openSystemSettings: appModel.openSettings
                 ) { settings in
                     appModel.applySettings(settings)

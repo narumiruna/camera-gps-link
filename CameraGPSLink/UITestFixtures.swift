@@ -99,9 +99,16 @@
                 for index in 0..<140 {
                     diagnostics.append("log \(index)")
                 }
-            case "health-alerts-allowed", "health-alerts-blocked", "health-alerts-foreground-suspension":
+            case "health-alerts-allowed", "health-alerts-blocked", "health-alerts-not-determined",
+                "health-alerts-foreground-suspension":
                 settings.healthAlertsEnabled = true
-                notificationAuthorization = scenario == "health-alerts-blocked" ? .denied : .allowed
+                if scenario == "health-alerts-blocked" {
+                    notificationAuthorization = .denied
+                } else if scenario == "health-alerts-not-determined" {
+                    notificationAuthorization = .notDetermined
+                } else {
+                    notificationAuthorization = .allowed
+                }
                 camera.state = .linked
                 camera.packetsSent = 1
                 camera.lastSentAt = now
@@ -297,7 +304,7 @@
     private final class UITestHealthNotificationService: HealthNotificationServicing {
         private(set) var authorizationStatus: HealthNotificationAuthorization
         var onAuthorizationChange: ((HealthNotificationAuthorization) -> Void)?
-        var onError: ((HealthNotificationKind?, String) -> Void)?
+        var onError: ((HealthNotificationRequest?, String) -> Void)?
 
         init(authorizationStatus: HealthNotificationAuthorization) {
             self.authorizationStatus = authorizationStatus

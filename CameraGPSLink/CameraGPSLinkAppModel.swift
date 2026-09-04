@@ -361,9 +361,9 @@ final class CameraGPSLinkAppModel: ObservableObject {
             self?.notificationAuthorization = authorization
             self?.refreshViewState()
         }
-        selectedNotificationService.onError = { [weak self] kind, message in
-            if let kind {
-                self?.healthMonitor.notificationRequestFailed(kind)
+        selectedNotificationService.onError = { [weak self] request, message in
+            if let request {
+                self?.healthMonitor.notificationRequestFailed(request)
             }
             self?.diagnosticsStore.append(message)
         }
@@ -515,6 +515,11 @@ final class CameraGPSLinkAppModel: ObservableObject {
 
     func requestBackgroundPermission() {
         locationService.requestAlwaysAuthorization()
+    }
+
+    func requestHealthAlertAuthorization() {
+        guard settings.healthAlertsEnabled, notificationAuthorization == .notDetermined else { return }
+        notificationService.requestAuthorization()
     }
 
     @discardableResult

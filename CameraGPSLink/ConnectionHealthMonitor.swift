@@ -40,6 +40,7 @@ final class ConnectionHealthMonitor {
     private(set) var hasReadySession = false
 
     private var previousCameraState: CameraConnectionState?
+    private var managedRequests: [HealthNotificationKind: HealthNotificationRequest] = [:]
     private var scheduledStaleFor: Date?
     private var outageDueAt: Date?
     private var didScheduleRecoveryForOutage = false
@@ -64,12 +65,12 @@ final class ConnectionHealthMonitor {
         removeAll(reason: "session ended")
     }
 
-    func notificationRequestFailed(_ kind: HealthNotificationKind) {
-        snapshot.managedRequests.removeValue(forKey: kind)
-        if kind == .staleCameraUpdate {
+    func notificationRequestFailed(_ request: HealthNotificationRequest) {
+        guard managedRequests[request.kind]?.generation == request.generation else { return }
+        managedRequests.removeValue(forKey: request.kind)
+        snapshot.managedRequests.removeValue(forKey: request.kind)
+        if request.kind == .staleCameraUpdate {
             scheduledStaleFor = nil
-        } else if kind == .linkLoss {
-            outageDueAt = nil
         }
     }
 
@@ -151,6 +152,8 @@ final class ConnectionHealthMonitor {
             && ![.stopping, .stopped, .pairing].contains(context.cameraState)
         if hasReadySession, leftLinkedCoverage, outageDueAt == nil {
             scheduleOutage(now: context.now)
+        } else {
+            retryLinkLossIfNeeded(using: context)
         }
 
         didInitialReconcile = true
@@ -176,8 +179,21 @@ final class ConnectionHealthMonitor {
         diagnostics.append("Health alert scheduled: delayed link loss")
     }
 
+    private func retryLinkLossIfNeeded(using context: ConnectionHealthMonitorContext) {
+        guard hasReadySession,
+            let outageDueAt,
+            context.cameraState != .linked,
+            managedRequests[.linkLoss] == nil
+        else { return }
+        schedule(.linkLoss(deliveryDate: outageDueAt))
+        diagnostics.append("Health alert rescheduled: delayed link loss")
+    }
+
     private func recover(using context: ConnectionHealthMonitorContext) {
-        let shouldNotifyRecovery = outageDueAt.map { context.now >= $0 } == true && !didScheduleRecoveryForOutage
+        let shouldNotifyRecovery =
+            outageDueAt.map { context.now >= $0 } == true
+            && managedRequests[.linkLoss] != nil
+            && !didScheduleRecoveryForOutage
         remove([.linkLoss])
         outageDueAt = nil
         if shouldNotifyRecovery {
@@ -198,6 +214,7 @@ final class ConnectionHealthMonitor {
 
     private func schedule(_ request: HealthNotificationRequest) {
         notifications.schedule(request)
+        managedRequests[request.kind] = request
         snapshot.managedRequests[request.kind] = request.deliveryDate
     }
 
@@ -205,6 +222,7 @@ final class ConnectionHealthMonitor {
         guard !kinds.isEmpty else { return }
         notifications.remove(kinds)
         for kind in kinds {
+            managedRequests.removeValue(forKey: kind)
             snapshot.managedRequests.removeValue(forKey: kind)
         }
     }
@@ -212,6 +230,7 @@ final class ConnectionHealthMonitor {
     private func removeAll(reason: String) {
         let hadRequests = !snapshot.managedRequests.isEmpty
         notifications.removeAllHealthNotifications()
+        managedRequests.removeAll()
         snapshot.managedRequests.removeAll()
         if hadRequests {
             diagnostics.append("Health alerts cleared: \(reason)")

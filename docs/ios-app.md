@@ -46,7 +46,7 @@ The public Release build hides **Continue in Background**, migrates a stale enab
 
 ### Health Alerts
 
-**Health Alerts** are off by default. Enabling them through Apply requests iOS notification permission in context; merely launching the app or opening Link Settings does not prompt. If permission is blocked, the preference remains on so Link Settings can explain the mismatch and offer **Open iOS Settings**.
+**Health Alerts** are off by default. Enabling them through Apply requests iOS notification permission in context; merely launching the app or opening Link Settings does not prompt. If a transient failure leaves permission at **Not Requested**, Link Settings offers **Retry Notification Permission**. If permission is blocked, the preference remains on so Link Settings can explain the mismatch and offer **Open iOS Settings**.
 
 Health Alerts use local notifications with generic text and warn about three conditions:
 

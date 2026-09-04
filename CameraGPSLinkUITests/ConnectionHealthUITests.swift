@@ -40,12 +40,21 @@ final class ConnectionHealthUITests: XCTestCase {
         XCTAssertTrue(permissionStatus("Allowed").exists)
     }
 
-    func testBlockedHealthAlertPermissionOffersSettingsRecovery() {
+    func testBlockedAndUndeterminedHealthAlertPermissionsOfferRecovery() {
         launch("health-alerts-blocked")
         openLinkSettings()
 
         XCTAssertTrue(permissionStatus("Blocked in iOS Settings").exists)
         XCTAssertTrue(app.buttons["health-alerts-open-settings"].exists)
+
+        app.terminate()
+        launch("health-alerts-not-determined")
+        openLinkSettings()
+        let retry = app.buttons["health-alerts-retry-permission"]
+        scrollUntilVisible(retry)
+        XCTAssertTrue(retry.isHittable)
+        retry.tap()
+        XCTAssertTrue(permissionStatus("Allowed").waitForExistence(timeout: 2))
     }
 
     func testLocationHealthFixturesUseDistinctActionableCopy() {

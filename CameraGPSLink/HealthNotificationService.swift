@@ -36,10 +36,25 @@ enum HealthNotificationKind: String, CaseIterable, Hashable {
 }
 
 struct HealthNotificationRequest: Equatable {
+    let generation: UUID
     let kind: HealthNotificationKind
     let title: String
     let body: String
     let deliveryDate: Date
+
+    init(
+        generation: UUID = UUID(),
+        kind: HealthNotificationKind,
+        title: String,
+        body: String,
+        deliveryDate: Date
+    ) {
+        self.generation = generation
+        self.kind = kind
+        self.title = title
+        self.body = body
+        self.deliveryDate = deliveryDate
+    }
 
     static func linkLoss(deliveryDate: Date) -> HealthNotificationRequest {
         HealthNotificationRequest(
@@ -64,7 +79,7 @@ struct HealthNotificationRequest: Equatable {
         HealthNotificationRequest(
             kind: .foregroundSuspension,
             title: "Geotagging Stopped",
-            body: "Camera GPS Link must stay open in While App Is Open mode. Reopen the app to resume.",
+            body: "Camera GPS Link must stay open in While App Is Open mode. Reopen the app and tap Start Geotagging.",
             deliveryDate: deliveryDate
         )
     }
@@ -83,7 +98,7 @@ struct HealthNotificationRequest: Equatable {
 protocol HealthNotificationServicing: AnyObject {
     var authorizationStatus: HealthNotificationAuthorization { get }
     var onAuthorizationChange: ((HealthNotificationAuthorization) -> Void)? { get set }
-    var onError: ((HealthNotificationKind?, String) -> Void)? { get set }
+    var onError: ((HealthNotificationRequest?, String) -> Void)? { get set }
 
     func refreshAuthorization()
     func requestAuthorization()
@@ -96,7 +111,7 @@ protocol HealthNotificationServicing: AnyObject {
 final class LocalHealthNotificationService: NSObject, HealthNotificationServicing, UNUserNotificationCenterDelegate {
     private(set) var authorizationStatus: HealthNotificationAuthorization = .notDetermined
     var onAuthorizationChange: ((HealthNotificationAuthorization) -> Void)?
-    var onError: ((HealthNotificationKind?, String) -> Void)?
+    var onError: ((HealthNotificationRequest?, String) -> Void)?
 
     private let center: UNUserNotificationCenter
     private let now: () -> Date
@@ -145,8 +160,7 @@ final class LocalHealthNotificationService: NSObject, HealthNotificationServicin
         center.add(notificationRequest) { [weak self] error in
             guard let error else { return }
             Task { @MainActor in
-                self?.remove([request.kind])
-                self?.onError?(request.kind, "Health alert scheduling failed: \(error.localizedDescription)")
+                self?.onError?(request, "Health alert scheduling failed: \(error.localizedDescription)")
             }
         }
     }
@@ -200,7 +214,7 @@ final class LocalHealthNotificationService: NSObject, HealthNotificationServicin
 final class NoopHealthNotificationService: HealthNotificationServicing {
     private(set) var authorizationStatus: HealthNotificationAuthorization
     var onAuthorizationChange: ((HealthNotificationAuthorization) -> Void)?
-    var onError: ((HealthNotificationKind?, String) -> Void)?
+    var onError: ((HealthNotificationRequest?, String) -> Void)?
 
     init(authorizationStatus: HealthNotificationAuthorization = .denied) {
         self.authorizationStatus = authorizationStatus

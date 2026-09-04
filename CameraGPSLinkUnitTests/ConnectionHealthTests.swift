@@ -151,6 +151,7 @@ final class HealthNotificationRequestTests: XCTestCase {
         ]
 
         XCTAssertEqual(Set(requests.map(\.kind)), Set(HealthNotificationKind.allCases))
+        XCTAssertEqual(Set(requests.map(\.generation)).count, requests.count)
         XCTAssertEqual(Set(HealthNotificationKind.identifiers).count, HealthNotificationKind.allCases.count)
         for request in requests {
             let payload = "\(request.title) \(request.body) \(request.kind.identifier)"
@@ -163,6 +164,11 @@ final class HealthNotificationRequestTests: XCTestCase {
         XCTAssertEqual(
             LocalHealthNotificationService.foregroundOptions(for: HealthNotificationKind.linkLoss.identifier),
             [.banner, .list, .sound]
+        )
+        XCTAssertTrue(
+            requests.first(where: { $0.kind == .foregroundSuspension })?.body.contains(
+                "tap Start Geotagging"
+            ) == true
         )
         XCTAssertEqual(LocalHealthNotificationService.foregroundOptions(for: "unrelated"), [])
         XCTAssertEqual(LocalHealthNotificationService.map(.notDetermined), .notDetermined)
@@ -291,17 +297,46 @@ final class ConnectionHealthMonitorTests: XCTestCase {
         XCTAssertTrue(notifications.scheduled.contains(where: { $0.kind == .linkLoss }))
     }
 
-    func testSchedulingFailureClearsManagedStateAndAllowsRetry() {
+    func testObsoleteStaleFailureCannotDeleteReplacementAndCurrentFailureRetries() {
         let (monitor, notifications) = makeMonitor()
-        let ready = readyContext(at: now)
-        monitor.update(ready)
+        let firstContext = readyContext(at: now)
+        monitor.update(firstContext)
+        let obsoleteRequest = notifications.scheduled.last!
+        let replacementTime = now.addingTimeInterval(1)
+        let replacementContext = readyContext(at: replacementTime, sentAt: replacementTime)
+        monitor.update(replacementContext)
+        let replacementRequest = notifications.scheduled.last!
+
+        monitor.notificationRequestFailed(obsoleteRequest)
+
+        XCTAssertEqual(monitor.snapshot.managedRequests[.staleCameraUpdate], replacementTime.addingTimeInterval(300))
+        XCTAssertNotEqual(obsoleteRequest.generation, replacementRequest.generation)
         let scheduleCount = notifications.scheduled.count
 
-        monitor.notificationRequestFailed(.staleCameraUpdate)
-        monitor.update(ready)
+        monitor.notificationRequestFailed(replacementRequest)
+        monitor.update(replacementContext)
 
         XCTAssertEqual(notifications.scheduled.count, scheduleCount + 1)
-        XCTAssertEqual(monitor.snapshot.managedRequests[.staleCameraUpdate], now.addingTimeInterval(300))
+        XCTAssertEqual(monitor.snapshot.managedRequests[.staleCameraUpdate], replacementTime.addingTimeInterval(300))
+    }
+
+    func testLinkLossSchedulingFailurePreservesOutageAndRetriesOnLaterUpdate() {
+        let (monitor, notifications) = makeMonitor()
+        monitor.update(readyContext(at: now))
+        let disconnected = disconnectedContext(at: now)
+        monitor.update(disconnected)
+        let failedRequest = notifications.scheduled.last!
+
+        monitor.notificationRequestFailed(failedRequest)
+        XCTAssertTrue(monitor.hasReadySession)
+        XCTAssertNil(monitor.snapshot.managedRequests[.linkLoss])
+
+        monitor.update(disconnectedContext(at: now.addingTimeInterval(30)))
+
+        let linkLossRequests = notifications.scheduled.filter { $0.kind == .linkLoss }
+        XCTAssertEqual(linkLossRequests.count, 2)
+        XCTAssertNotEqual(linkLossRequests[0].generation, linkLossRequests[1].generation)
+        XCTAssertEqual(linkLossRequests[1].deliveryDate, now.addingTimeInterval(10))
     }
 
     func testDisabledOrDeniedAlertsRemoveOnlyOwnedKindsAndCanReschedule() {

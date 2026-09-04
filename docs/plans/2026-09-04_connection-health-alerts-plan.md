@@ -97,7 +97,7 @@ flowchart LR
 - [x] Register every new production and test Swift file in `CameraGPSLink.xcodeproj` without adding code to the 998-line existing unit-test file; verified by `plutil -lint`, `just source-line-check` (33 Swift files), and `just ios-typecheck` with no source over 1,000 lines.
 - [x] Extend debug-only UI fixtures with allowed, blocked, stale-fix, low-accuracy, stale-camera-update, and foreground-suspension scenarios while injecting a no-prompt notification fake for XCUITest; verified by fixture tests plus successful unsigned public Release and `QUALIFICATION` builds on 2026-09-04.
 - [x] Add XCUITests for alert setting Apply/Cancel, blocked authorization recovery copy, coexisting notices, freshness/accuracy labels, Dynamic Type, dark/increased-contrast/reduced-motion, and portrait/landscape reachability; verified by the complete `just check` run: 25 XCUITests passed with 0 failures and no system prompt.
-- [x] Run focused unit tests after each domain/service integration checkpoint, then run `just ios-unit-test`; the final `just check` run passed 97 unit tests with 0 failures on 2026-09-04.
+- [x] Run focused unit tests after each domain/service integration checkpoint, then run `just ios-unit-test`; the review-complete `just check` run passed 99 unit tests with 0 failures on 2026-09-04.
 
 ### 7. Document behavior and privacy
 
@@ -107,10 +107,17 @@ flowchart LR
 
 ### 8. Verify release behavior and recoverability
 
-- [x] Run `just check` from the completed working tree and record successful smoke, typecheck, lint, Debug/device, public Release, Qualification, unit-test, and UI-test evidence in this plan; background-run exit status `0`, four builds succeeded, 97 unit tests passed, and 25 XCUITests passed on 2026-09-04.
+- [x] Run `just check` from the completed working tree and record successful smoke, typecheck, lint, Debug/device, public Release, Qualification, unit-test, and UI-test evidence in this plan; review-complete background-run exit status `0`, four builds succeeded, 99 unit tests passed, and 25 XCUITests passed on 2026-09-04.
 - [ ] On an iPhone, verify the authorization prompt appears only after enabling Health Alerts, foreground delivery uses generic text/sound, disabling alerts removes pending health requests, and denied permission leaves geotagging functional; blocked on 2026-09-04 because `xcrun devicectl list devices` reports `No devices found`.
 - [ ] With separately explicit authorization for a physical camera write, use the A7C II Qualification build to verify one successful `DD11`, a greater-than-10-second disconnect alert, stale-warning replacement after a new send, recovery behavior, intentional Stop suppression, and foreground-only background suspension; blocked because no iPhone is connected and separate physical-camera write authorization/evidence is unavailable.
 - [x] Inspect the final diff for accidental Sony protocol, compatibility registry, background-policy, privacy-manifest, notification entitlement, or source-line-limit changes; verified the staged 24-file diff is focused, only shared freshness constants touch BLE code, `PrivacyInfo.xcprivacy`/`Info.plist`/release policy are unchanged, no entitlement was added, and `git diff --cached --check` passes.
+
+### 9. Address PR review feedback
+
+- [x] Correct the foreground-only suspension notification so it requires reopening the app and tapping **Start Geotagging**; verified by the exact payload assertion in `HealthNotificationRequestTests` and the passing full gate.
+- [x] Add an explicit **Retry Notification Permission** action for an enabled preference that remains **Not Requested** without prompting at launch; verified by `HealthAlertAppModelTests`, the no-prompt UI fixture, and `ConnectionHealthUITests` in the passing full gate.
+- [x] Associate asynchronous notification scheduling failures with a unique request generation so a stale callback cannot clear a newer same-kind request; verified by obsolete/current generation ordering in `ConnectionHealthMonitorTests` and the passing full gate.
+- [x] Preserve an active outage after a link-loss scheduling failure and retry on a later monitor update without a tight callback loop; verified that a later update retains the original deadline with a new generation in `ConnectionHealthMonitorTests` and the passing full gate.
 
 ## Risks
 

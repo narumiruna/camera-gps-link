@@ -61,6 +61,24 @@ final class HealthAlertAppModelTests: XCTestCase {
         XCTAssertTrue(model.diagnosticsStore.copyText.contains("Health alert scheduling failed"))
     }
 
+    func testEnabledUndeterminedAlertsCanRetryAuthorizationAfterInitialFailure() {
+        let notifications = RecordingHealthNotificationService(authorizationStatus: .notDetermined)
+        var settings = LinkSettings.default
+        settings.healthAlertsEnabled = true
+        let model = makeModel(
+            settingsStore: HealthTestSettingsStore(settings: settings),
+            notifications: notifications
+        )
+
+        XCTAssertEqual(notifications.authorizationRequests, 0)
+        model.requestHealthAlertAuthorization()
+
+        XCTAssertEqual(notifications.authorizationRequests, 1)
+        notifications.setAuthorization(.denied)
+        model.requestHealthAlertAuthorization()
+        XCTAssertEqual(notifications.authorizationRequests, 1)
+    }
+
     func testFailedSettingsSaveDoesNotRequestAuthorization() {
         let notifications = RecordingHealthNotificationService(authorizationStatus: .notDetermined)
         let store = HealthTestSettingsStore(settings: .default)
@@ -154,7 +172,7 @@ final class HealthAlertAppModelTests: XCTestCase {
 final class RecordingHealthNotificationService: HealthNotificationServicing {
     private(set) var authorizationStatus: HealthNotificationAuthorization
     var onAuthorizationChange: ((HealthNotificationAuthorization) -> Void)?
-    var onError: ((HealthNotificationKind?, String) -> Void)?
+    var onError: ((HealthNotificationRequest?, String) -> Void)?
     var authorizationRequests = 0
     var refreshes = 0
     var scheduled: [HealthNotificationRequest] = []
@@ -176,8 +194,8 @@ final class RecordingHealthNotificationService: HealthNotificationServicing {
         onAuthorizationChange?(authorization)
     }
 
-    func sendError(_ message: String, kind: HealthNotificationKind? = nil) {
-        onError?(kind, message)
+    func sendError(_ message: String, request: HealthNotificationRequest? = nil) {
+        onError?(request, message)
     }
 }
 
