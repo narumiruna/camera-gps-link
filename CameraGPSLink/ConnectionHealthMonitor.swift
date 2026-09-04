@@ -43,10 +43,10 @@ final class ConnectionHealthMonitor {
     private var managedRequests: [HealthNotificationKind: HealthNotificationRequest] = [:]
     private var scheduledStaleFor: Date?
     private var outageDueAt: Date?
-    private var didScheduleRecoveryForOutage = false
     private var preservesForegroundSuspension = false
     private var didInitialReconcile = false
     private var didReconcileRestoredRequests = false
+    private var didRemoveLegacyRecovery = false
 
     init(notifications: HealthNotificationServicing, diagnostics: DiagnosticsLogStore) {
         self.notifications = notifications
@@ -76,12 +76,9 @@ final class ConnectionHealthMonitor {
     }
 
     func appBecameActive() {
-        guard preservesForegroundSuspension else {
-            remove([.recovery])
-            return
-        }
+        guard preservesForegroundSuspension else { return }
         preservesForegroundSuspension = false
-        remove([.foregroundSuspension, .recovery])
+        remove([.foregroundSuspension])
     }
 
     func suspendForegroundOnly(using context: ConnectionHealthMonitorContext) {
@@ -122,6 +119,7 @@ final class ConnectionHealthMonitor {
             previousCameraState = context.cameraState
             return
         }
+        removeLegacyRecoveryIfNeeded()
         if preservesForegroundSuspension, !context.isForeground {
             previousCameraState = context.cameraState
             return
@@ -136,23 +134,20 @@ final class ConnectionHealthMonitor {
         let recoveredWithNewUpdate = hasConfirmedUpdate && context.cameraState == .linked && outageDueAt != nil
 
         if hasConfirmedUpdate, context.cameraState == .linked, !didReconcileRestoredRequests {
-            remove([.linkLoss, .foregroundSuspension, .recovery])
+            remove([.linkLoss, .foregroundSuspension])
             didReconcileRestoredRequests = true
         }
         if recoveredWithNewUpdate {
-            recover(using: context)
+            recover()
         }
 
-        if hasConfirmedUpdate, let lastSentAt = context.lastSentAt {
+        if hasConfirmedUpdate, context.cameraState == .linked, let lastSentAt = context.lastSentAt {
             hasReadySession = true
             scheduleStaleUpdateIfNeeded(lastSentAt: lastSentAt, now: context.now)
         }
 
-        let leftLinkedCoverage =
-            previousCameraState == .linked
-            && context.cameraState != .linked
-            && ![.stopping, .stopped, .pairing].contains(context.cameraState)
-        if hasReadySession, leftLinkedCoverage, outageDueAt == nil {
+        let lostCoverage = context.cameraState != .linked && context.cameraState != .pairing
+        if hasReadySession, lostCoverage, outageDueAt == nil {
             scheduleOutage(now: context.now)
         } else {
             retryLinkLossIfNeeded(using: context)
@@ -176,7 +171,6 @@ final class ConnectionHealthMonitor {
         scheduledStaleFor = nil
         let deadline = now.addingTimeInterval(ConnectionHealthPolicy.disconnectDebounce)
         outageDueAt = deadline
-        didScheduleRecoveryForOutage = false
         schedule(.linkLoss(deliveryDate: deadline))
         diagnostics.append("Health alert scheduled: delayed link loss")
     }
@@ -191,26 +185,24 @@ final class ConnectionHealthMonitor {
         diagnostics.append("Health alert rescheduled: delayed link loss")
     }
 
-    private func recover(using context: ConnectionHealthMonitorContext) {
-        let shouldNotifyRecovery =
-            outageDueAt.map { context.now >= $0 } == true
-            && managedRequests[.linkLoss] != nil
-            && !didScheduleRecoveryForOutage
+    private func recover() {
         remove([.linkLoss])
         outageDueAt = nil
-        if shouldNotifyRecovery {
-            didScheduleRecoveryForOutage = true
-            schedule(.recovery(deliveryDate: context.now))
-            diagnostics.append("Health alert scheduled: recovery")
-        }
+    }
+
+    private func removeLegacyRecoveryIfNeeded() {
+        guard !didRemoveLegacyRecovery else { return }
+        notifications.removeLegacyRecoveryNotification()
+        didRemoveLegacyRecovery = true
     }
 
     private func reconcileDisabled(reason: String) {
-        guard !didInitialReconcile || !snapshot.managedRequests.isEmpty else { return }
+        guard !didInitialReconcile || !snapshot.managedRequests.isEmpty || !didReconcileRestoredRequests else {
+            return
+        }
         didInitialReconcile = true
         scheduledStaleFor = nil
         outageDueAt = nil
-        didScheduleRecoveryForOutage = false
         removeAll(reason: reason)
     }
 
@@ -233,6 +225,7 @@ final class ConnectionHealthMonitor {
         let hadRequests = !snapshot.managedRequests.isEmpty
         notifications.removeAllHealthNotifications()
         didReconcileRestoredRequests = true
+        didRemoveLegacyRecovery = true
         managedRequests.removeAll()
         snapshot.managedRequests.removeAll()
         if hadRequests {
@@ -245,7 +238,6 @@ final class ConnectionHealthMonitor {
         previousCameraState = nil
         scheduledStaleFor = nil
         outageDueAt = nil
-        didScheduleRecoveryForOutage = false
         preservesForegroundSuspension = false
     }
 }

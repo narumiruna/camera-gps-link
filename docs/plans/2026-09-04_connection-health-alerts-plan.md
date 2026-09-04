@@ -65,7 +65,7 @@ flowchart LR
 ### 2. Add an injectable local-notification service
 
 - [x] Add a `HealthNotificationServicing` protocol and production `UNUserNotificationCenter` adapter that can refresh/request authorization, add or replace namespaced requests, and remove only Camera GPS Link health requests from both pending and delivered notifications; verified by typed recording fakes and `HealthNotificationRequestTests` (`just ios-unit-test`).
-- [x] Define stable identifiers for delayed link loss, stale camera update, foreground-only suspension, and recovery; use generic coordinate-free title/body text, no badge, and the user's opted-in alert/sound authorization; verified by complete payload assertions in `HealthNotificationRequestTests`.
+- [x] Define stable identifiers for delayed link loss, stale camera update, and foreground-only suspension; use generic coordinate-free title/body text, no badge, and the user's opted-in alert/sound authorization; verified by complete payload assertions in `HealthNotificationRequestTests`. A standalone recovery identifier was removed after review because delivery of the preceding loss alert cannot be confirmed race-free.
 - [ ] Present this app's health notifications with banner/list and sound while the app is active, while leaving unrelated notification categories untouched; delegate routing passes `HealthNotificationRequestTests`, but a live foreground notification presentation check remains unverified because no iPhone is connected and the no-prompt UI fixtures intentionally inject a fake service.
 - [x] Treat notification authorization or scheduling failures as nonfatal: preserve geotagging, clear failed managed-request state, expose a sanitized diagnostic event, and do not replace the primary connection error; verified by `HealthAlertAppModelTests` and `ConnectionHealthMonitorTests` (`just ios-unit-test`).
 
@@ -80,7 +80,7 @@ flowchart LR
 
 - [x] Integrate a `ConnectionHealthMonitor` at the `CameraGPSLinkAppModel` boundary and feed it post-change camera/location snapshots, `linkRequested`, lifecycle, settings, and the injected clock; verified by duplicate-update and duplicate-scene-phase tests (`just ios-unit-test`).
 - [x] After every successful `DD11`, replace the pending stale-update request with one due exactly at `lastSentAt + 300 seconds`; cancel it when alerts are off or the user stops/cancels, and preserve/reconcile it across process restoration only while persisted active-link intent remains true; verified by deterministic scheduler and restored-intent tests.
-- [x] When a previously ready active session leaves linked coverage unexpectedly, schedule one link-loss request after 10 seconds; cancel it if a successful `DD11` restores readiness before the deadline, and issue at most one recovery notification after a longer notified outage; verified by fast-flap, prolonged-outage, and deduplication tests.
+- [x] When a previously ready active session leaves linked coverage unexpectedly, schedule one link-loss request after 10 seconds and cancel it when a successful `DD11` restores readiness; verified by fast-flap, prolonged-outage, failure-cleanup, permission-restoration, and deduplication tests. Do not post a standalone recovery notification because iOS delivery cannot be confirmed without a race.
 - [x] When a previously ready foreground-only session enters the background, cancel competing stale/link-loss requests and schedule one immediate message explaining that geotagging stopped because the app is no longer open; verified for `.inactive`, foreground-only background, and background-enabled transitions in unit tests and a sanitized UI fixture.
 - [x] Suppress all system alerts for initial search/connect/setup failures, unsupported profiles, pairing initialization, notification/location permission changes, user Stop/Cancel, and sessions that have never completed `DD11`; verified by negative transition-table tests.
 - [x] On launch and every authorization/settings change, reconcile only namespaced pending requests: alerts off or no active intent removes them, denied authorization records blocked state without retry loops, and an active restored intent retains or replaces a valid pending stale deadline after the next successful send; verified by restored-intent, disabled, and authorization transition tests.
@@ -97,19 +97,19 @@ flowchart LR
 - [x] Register every new production and test Swift file in `CameraGPSLink.xcodeproj` without adding code to the 998-line existing unit-test file; verified by `plutil -lint`, `just source-line-check` (33 Swift files), and `just ios-typecheck` with no source over 1,000 lines.
 - [x] Extend debug-only UI fixtures with allowed, blocked, stale-fix, low-accuracy, stale-camera-update, and foreground-suspension scenarios while injecting a no-prompt notification fake for XCUITest; verified by fixture tests plus successful unsigned public Release and `QUALIFICATION` builds on 2026-09-04.
 - [x] Add XCUITests for alert setting Apply/Cancel, blocked authorization recovery copy, coexisting notices, freshness/accuracy labels, Dynamic Type, dark/increased-contrast/reduced-motion, and portrait/landscape reachability; verified by the complete `just check` run: 25 XCUITests passed with 0 failures and no system prompt.
-- [x] Run focused unit tests after each domain/service integration checkpoint, then run `just ios-unit-test`; the review-complete `just check` run passed 99 unit tests with 0 failures on 2026-09-04.
+- [x] Run focused unit tests after each domain/service integration checkpoint, then run `just ios-unit-test`; the third-review `just check` run passed 103 unit tests with 0 failures on 2026-09-04.
 
 ### 7. Document behavior and privacy
 
-- [x] Update `README.md`, `docs/ios-app.md`, and `docs/SUPPORT.md` with opt-in setup, the three alert conditions, deduplication/recovery behavior, permission recovery, foreground-only suspension wording, and the fact that notifications do not keep the app running; verified by copy review against implemented labels.
+- [x] Update `README.md`, `docs/ios-app.md`, and `docs/SUPPORT.md` with opt-in setup, the three alert conditions, deduplication/cancellation behavior, permission recovery, foreground-only suspension wording, and the fact that notifications do not keep the app running; verified by copy review against implemented labels.
 - [x] Update `docs/PRIVACY.md` to state that the alert preference and local notifications stay on device and notification text contains no coordinates; verified that no-server/no-tracking claims remain and `PrivacyInfo.xcprivacy` is unchanged.
 - [x] Confirm local notifications require neither a push entitlement nor a new `Info.plist` usage-description key, and inspect the final project/entitlements diff to ensure no remote-notification capability was added; verified that `Info.plist` and `PrivacyInfo.xcprivacy` are unchanged, no entitlements file/capability was added, and Debug, Qualification, and public Release builds pass.
 
 ### 8. Verify release behavior and recoverability
 
-- [x] Run `just check` from the completed working tree and record successful smoke, typecheck, lint, Debug/device, public Release, Qualification, unit-test, and UI-test evidence in this plan; review-complete background-run exit status `0`, four builds succeeded, 99 unit tests passed, and 25 XCUITests passed on 2026-09-04.
+- [x] Run `just check` from the completed working tree and record successful smoke, typecheck, lint, Debug/device, public Release, Qualification, unit-test, and UI-test evidence in this plan; third-review background-run exit status `0`, four builds succeeded, 103 unit tests passed, and 25 XCUITests passed on 2026-09-04.
 - [ ] On an iPhone, verify the authorization prompt appears only after enabling Health Alerts, foreground delivery uses generic text/sound, disabling alerts removes pending health requests, and denied permission leaves geotagging functional; blocked on 2026-09-04 because `xcrun devicectl list devices` reports `No devices found`.
-- [ ] With separately explicit authorization for a physical camera write, use the A7C II Qualification build to verify one successful `DD11`, a greater-than-10-second disconnect alert, stale-warning replacement after a new send, recovery behavior, intentional Stop suppression, and foreground-only background suspension; blocked because no iPhone is connected and separate physical-camera write authorization/evidence is unavailable.
+- [ ] With separately explicit authorization for a physical camera write, use the A7C II Qualification build to verify one successful `DD11`, a greater-than-10-second disconnect alert, stale-warning replacement after a new send, interruption cancellation after reconnection, intentional Stop suppression, and foreground-only background suspension; blocked because no iPhone is connected and separate physical-camera write authorization/evidence is unavailable.
 - [x] Inspect the final diff for accidental Sony protocol, compatibility registry, background-policy, privacy-manifest, notification entitlement, or source-line-limit changes; verified the staged 24-file diff is focused, only shared freshness constants touch BLE code, `PrivacyInfo.xcprivacy`/`Info.plist`/release policy are unchanged, no entitlement was added, and `git diff --cached --check` passes.
 
 ### 9. Address PR review feedback
@@ -121,7 +121,16 @@ flowchart LR
 
 ### 10. Address second PR review round
 
-- [x] Preserve unknown health requests only while a restored active intent is still reconnecting, then remove restored link-loss, foreground-suspension, and recovery requests when a fresh confirmed `DD11` establishes readiness; verified by one-time restored-request cancellation in `ConnectionHealthMonitorTests` and the passing `just check` gate (99 unit tests, 25 XCUITests).
+- [x] Preserve unknown health requests only while a restored active intent is still reconnecting, then remove restored link-loss and foreground-suspension requests when a fresh confirmed `DD11` establishes readiness; verified by one-time restored-request cancellation in `ConnectionHealthMonitorTests` and the passing `just check` gate (103 unit tests, 25 XCUITests).
+
+### 11. Address third PR review round
+
+- [x] Keep stale-update alerts suppressed throughout disconnected refreshes even when cached packet counters remain; verified repeated disconnected snapshots do not recreate the removed stale request in `ConnectionHealthMonitorTests`.
+- [x] Remove unknown restored requests when active link intent terminates before a fresh send; verified a restored reconnect followed by unsupported terminal state performs one full health-request cleanup.
+- [x] Rearm a previously ready disconnected episode when notification permission changes from denied to allowed; verified current non-linked state schedules link loss without another transition edge.
+- [x] Treat `.stopping` as lost coverage after an operational failure while relying on explicit `endSession()` to suppress intentional Stop; verified both paths independently.
+- [x] Remove standalone recovery notifications because loss-alert delivery cannot be confirmed race-free; verified reconnect only cancels link loss and schedules the next stale deadline.
+- [x] Ensure renewed loss cannot leave a contradictory pending recovery alert; verified no recovery kind, request factory, or monitor scheduling path remains, while the legacy identifier is retained only for one-time cleanup.
 
 ## Risks
 
@@ -141,7 +150,7 @@ flowchart LR
 ## Completion Checklist
 
 - [ ] Health Alerts are explicitly opt-in, authorization-aware, local-only, and never prompt at launch; verified by app-model tests, XCUITest settings flows, and an iPhone permission check.
-- [ ] A previously ready session produces one debounced loss alert, one five-minute stale-update alert, one foreground-only suspension alert, and at most one qualified recovery alert under the defined transitions; verified by deterministic transition-table tests and physical A7C II evidence.
+- [ ] A previously ready session produces one debounced loss alert, one five-minute stale-update alert, and one foreground-only suspension alert under the defined transitions, while reconnection cancels obsolete loss alerts without a standalone recovery alert; verified by deterministic transition-table tests, with physical A7C II evidence still pending.
 - [x] Intentional stop/cancel, first connection failure, unsupported camera, fast reconnect, pairing, and repeated service callbacks produce no false or duplicate alerts; verified by negative unit tests.
 - [x] A successful `DD11`, disabled preference, ended intent, or recovered session replaces/cancels obsolete pending requests; verified by request-identifier and relaunch reconciliation tests.
 - [x] The home screen distinguishes camera-update freshness from missing, invalid, future, stale, low-accuracy, and healthy iPhone fixes without exposing coordinates; verified by view-state tests and accessibility UI fixtures.

@@ -147,12 +147,16 @@ final class HealthNotificationRequestTests: XCTestCase {
             HealthNotificationRequest.linkLoss(deliveryDate: now),
             .staleCameraUpdate(deliveryDate: now),
             .foregroundSuspension(deliveryDate: now),
-            .recovery(deliveryDate: now),
         ]
 
         XCTAssertEqual(Set(requests.map(\.kind)), Set(HealthNotificationKind.allCases))
         XCTAssertEqual(Set(requests.map(\.generation)).count, requests.count)
-        XCTAssertEqual(Set(HealthNotificationKind.identifiers).count, HealthNotificationKind.allCases.count)
+        XCTAssertEqual(Set(HealthNotificationKind.identifiers).count, HealthNotificationKind.allCases.count + 1)
+        XCTAssertTrue(HealthNotificationKind.identifiers.contains(HealthNotificationKind.legacyRecoveryIdentifier))
+        XCTAssertEqual(
+            Set(HealthNotificationKind.allCases.map(\.rawValue)),
+            Set(["link-loss", "stale-camera-update", "foreground-suspension"])
+        )
         for request in requests {
             let payload = "\(request.title) \(request.body) \(request.kind.identifier)"
             XCTAssertFalse(payload.contains("ILCE"))
@@ -196,7 +200,7 @@ final class ConnectionHealthMonitorTests: XCTestCase {
         XCTAssertEqual(monitor.snapshot.managedRequests[.staleCameraUpdate], now.addingTimeInterval(300))
     }
 
-    func testFastDisconnectIsCancelledWithoutRecoveryAlert() {
+    func testFastDisconnectCancelsLossWithoutStandaloneRecoveryAlert() {
         let (monitor, notifications) = makeMonitor()
         monitor.update(readyContext(at: now))
         monitor.update(disconnectedContext(at: now))
@@ -207,11 +211,10 @@ final class ConnectionHealthMonitorTests: XCTestCase {
         monitor.update(readyContext(at: now.addingTimeInterval(5), sentAt: now.addingTimeInterval(5)))
 
         XCTAssertTrue(notifications.removed.contains(Set([.linkLoss])))
-        XCTAssertFalse(notifications.scheduled.contains(where: { $0.kind == .recovery }))
-        XCTAssertEqual(notifications.scheduled.filter { $0.kind == .linkLoss }.count, 1)
+        XCTAssertEqual(notifications.scheduled.map(\.kind), [.staleCameraUpdate, .linkLoss, .staleCameraUpdate])
     }
 
-    func testProlongedOutageSchedulesAtMostOneRecovery() {
+    func testProlongedOutageCancelsLossWithoutStandaloneRecoveryAlert() {
         let (monitor, notifications) = makeMonitor()
         monitor.update(readyContext(at: now))
         monitor.update(disconnectedContext(at: now))
@@ -220,8 +223,8 @@ final class ConnectionHealthMonitorTests: XCTestCase {
         monitor.update(recovered)
         monitor.update(recovered)
 
-        XCTAssertEqual(notifications.scheduled.filter { $0.kind == .recovery }.count, 1)
-        XCTAssertEqual(notifications.scheduled.filter { $0.kind == .linkLoss }.count, 1)
+        XCTAssertTrue(notifications.removed.contains(Set([.linkLoss])))
+        XCTAssertEqual(notifications.scheduled.map(\.kind), [.staleCameraUpdate, .linkLoss, .staleCameraUpdate])
     }
 
     func testRestoredIntentKeepsThenFreshSendClearsUnknownOutageRequests() {
@@ -230,28 +233,81 @@ final class ConnectionHealthMonitorTests: XCTestCase {
 
         XCTAssertEqual(notifications.removeAllCount, 0)
         XCTAssertTrue(notifications.scheduled.isEmpty)
+        XCTAssertEqual(notifications.legacyRecoveryRemovalCount, 1)
+        monitor.update(context(state: .connecting, activeIntent: true, isForeground: false, at: now))
+        XCTAssertEqual(notifications.legacyRecoveryRemovalCount, 1)
 
         let sentAt = now.addingTimeInterval(1)
         monitor.update(readyContext(at: sentAt, sentAt: sentAt))
 
-        XCTAssertTrue(
-            notifications.removed.contains(
-                Set([.linkLoss, .foregroundSuspension, .recovery])
-            )
-        )
+        let restoredKinds = Set([HealthNotificationKind.linkLoss, .foregroundSuspension])
+        XCTAssertTrue(notifications.removed.contains(restoredKinds))
         XCTAssertEqual(notifications.scheduled.last?.kind, .staleCameraUpdate)
-        let reconciliationCount = notifications.removed.filter {
-            $0 == Set([.linkLoss, .foregroundSuspension, .recovery])
-        }.count
+        let reconciliationCount = notifications.removed.filter { $0 == restoredKinds }.count
 
         monitor.update(readyContext(at: sentAt, sentAt: sentAt))
 
-        XCTAssertEqual(
-            notifications.removed.filter {
-                $0 == Set([.linkLoss, .foregroundSuspension, .recovery])
-            }.count,
-            reconciliationCount
+        XCTAssertEqual(notifications.removed.filter { $0 == restoredKinds }.count, reconciliationCount)
+    }
+
+    func testRestoredIntentTerminalClearRemovesUnknownRequests() {
+        let (monitor, notifications) = makeMonitor()
+        monitor.update(context(state: .connecting, activeIntent: true, isForeground: false, at: now))
+        XCTAssertEqual(notifications.removeAllCount, 0)
+
+        monitor.update(context(state: .unsupported, activeIntent: false, isForeground: false, at: now))
+
+        XCTAssertEqual(notifications.removeAllCount, 1)
+    }
+
+    func testDisconnectedRefreshDoesNotRecreateStaleAlertFromCachedSend() {
+        let (monitor, notifications) = makeMonitor()
+        monitor.update(readyContext(at: now))
+        let disconnected = context(
+            state: .connecting,
+            packets: 1,
+            sentAt: now,
+            activeIntent: true,
+            isForeground: false,
+            backgroundEnabled: true,
+            at: now
         )
+
+        monitor.update(disconnected)
+        monitor.update(disconnected)
+
+        XCTAssertEqual(notifications.scheduled.filter { $0.kind == .staleCameraUpdate }.count, 1)
+        XCTAssertNil(monitor.snapshot.managedRequests[.staleCameraUpdate])
+        XCTAssertNotNil(monitor.snapshot.managedRequests[.linkLoss])
+    }
+
+    func testPermissionRestoreRearmsPreviouslyReadyDisconnectedEpisode() {
+        let (monitor, notifications) = makeMonitor()
+        monitor.update(readyContext(at: now))
+        monitor.update(
+            context(
+                state: .connecting,
+                activeIntent: true,
+                isForeground: false,
+                backgroundEnabled: true,
+                authorization: .denied,
+                at: now
+            )
+        )
+        let linkLossCount = notifications.scheduled.filter { $0.kind == .linkLoss }.count
+
+        monitor.update(disconnectedContext(at: now.addingTimeInterval(30)))
+
+        XCTAssertEqual(notifications.scheduled.filter { $0.kind == .linkLoss }.count, linkLossCount + 1)
+    }
+
+    func testFailureCleanupStoppingStateSchedulesLossAfterReady() {
+        let (monitor, notifications) = makeMonitor()
+        monitor.update(readyContext(at: now))
+
+        monitor.update(context(state: .stopping, activeIntent: false, at: now))
+
+        XCTAssertEqual(notifications.scheduled.last?.kind, .linkLoss)
     }
 
     func testInitialFailureAndIntentionalEndNeverScheduleLoss() {
@@ -262,7 +318,6 @@ final class ConnectionHealthMonitorTests: XCTestCase {
         monitor.endSession()
 
         XCTAssertFalse(notifications.scheduled.contains(where: { $0.kind == .linkLoss }))
-        XCTAssertFalse(notifications.scheduled.contains(where: { $0.kind == .recovery }))
     }
 
     func testIntentionalEndAndPairingSuppressLossAndClearOwnedRequests() {
@@ -272,8 +327,12 @@ final class ConnectionHealthMonitorTests: XCTestCase {
         XCTAssertFalse(notifications.scheduled.contains(where: { $0.kind == .linkLoss }))
 
         monitor.endSession()
+        let linkLossCount = notifications.scheduled.filter { $0.kind == .linkLoss }.count
+        monitor.update(context(state: .stopping, activeIntent: false, at: now))
+
         XCTAssertGreaterThanOrEqual(notifications.removeAllCount, 1)
         XCTAssertTrue(monitor.snapshot.managedRequests.isEmpty)
+        XCTAssertEqual(notifications.scheduled.filter { $0.kind == .linkLoss }.count, linkLossCount)
     }
 
     func testForegroundOnlySuspensionReplacesCompetingRequests() {
@@ -298,7 +357,7 @@ final class ConnectionHealthMonitorTests: XCTestCase {
         XCTAssertEqual(Set(monitor.snapshot.managedRequests.keys), [.foregroundSuspension])
 
         monitor.appBecameActive()
-        XCTAssertTrue(notifications.removed.contains(Set([.foregroundSuspension, .recovery])))
+        XCTAssertTrue(notifications.removed.contains(Set([.foregroundSuspension])))
     }
 
     func testBackgroundEnabledSessionDoesNotUseForegroundSuspensionPath() {

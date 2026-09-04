@@ -177,6 +177,7 @@ final class RecordingHealthNotificationService: HealthNotificationServicing {
     var refreshes = 0
     var scheduled: [HealthNotificationRequest] = []
     var removed: [Set<HealthNotificationKind>] = []
+    var legacyRecoveryRemovalCount = 0
     var removeAllCount = 0
 
     init(authorizationStatus: HealthNotificationAuthorization) {
@@ -187,6 +188,7 @@ final class RecordingHealthNotificationService: HealthNotificationServicing {
     func requestAuthorization() { authorizationRequests += 1 }
     func schedule(_ request: HealthNotificationRequest) { scheduled.append(request) }
     func remove(_ kinds: Set<HealthNotificationKind>) { removed.append(kinds) }
+    func removeLegacyRecoveryNotification() { legacyRecoveryRemovalCount += 1 }
     func removeAllHealthNotifications() { removeAllCount += 1 }
 
     func setAuthorization(_ authorization: HealthNotificationAuthorization) {

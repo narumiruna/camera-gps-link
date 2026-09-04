@@ -320,6 +320,7 @@
 
         func schedule(_ request: HealthNotificationRequest) {}
         func remove(_ kinds: Set<HealthNotificationKind>) {}
+        func removeLegacyRecoveryNotification() {}
         func removeAllHealthNotifications() {}
     }
 

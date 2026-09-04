@@ -24,14 +24,15 @@ enum HealthNotificationKind: String, CaseIterable, Hashable {
     case linkLoss = "link-loss"
     case staleCameraUpdate = "stale-camera-update"
     case foregroundSuspension = "foreground-suspension"
-    case recovery
 
     var identifier: String {
         "dev.narumi.cameragpslink.health.\(rawValue)"
     }
 
+    static let legacyRecoveryIdentifier = "dev.narumi.cameragpslink.health.recovery"
+
     static var identifiers: [String] {
-        allCases.map(\.identifier)
+        allCases.map(\.identifier) + [legacyRecoveryIdentifier]
     }
 }
 
@@ -84,14 +85,6 @@ struct HealthNotificationRequest: Equatable {
         )
     }
 
-    static func recovery(deliveryDate: Date) -> HealthNotificationRequest {
-        HealthNotificationRequest(
-            kind: .recovery,
-            title: "Camera Link Restored",
-            body: "The camera has received a fresh location update and is ready to geotag again.",
-            deliveryDate: deliveryDate
-        )
-    }
 }
 
 @MainActor
@@ -104,6 +97,7 @@ protocol HealthNotificationServicing: AnyObject {
     func requestAuthorization()
     func schedule(_ request: HealthNotificationRequest)
     func remove(_ kinds: Set<HealthNotificationKind>)
+    func removeLegacyRecoveryNotification()
     func removeAllHealthNotifications()
 }
 
@@ -171,6 +165,12 @@ final class LocalHealthNotificationService: NSObject, HealthNotificationServicin
         center.removeDeliveredNotifications(withIdentifiers: identifiers)
     }
 
+    func removeLegacyRecoveryNotification() {
+        let identifiers = [HealthNotificationKind.legacyRecoveryIdentifier]
+        center.removePendingNotificationRequests(withIdentifiers: identifiers)
+        center.removeDeliveredNotifications(withIdentifiers: identifiers)
+    }
+
     func removeAllHealthNotifications() {
         let identifiers = HealthNotificationKind.identifiers
         center.removePendingNotificationRequests(withIdentifiers: identifiers)
@@ -224,5 +224,6 @@ final class NoopHealthNotificationService: HealthNotificationServicing {
     func requestAuthorization() {}
     func schedule(_ request: HealthNotificationRequest) {}
     func remove(_ kinds: Set<HealthNotificationKind>) {}
+    func removeLegacyRecoveryNotification() {}
     func removeAllHealthNotifications() {}
 }

@@ -54,7 +54,7 @@ Health Alerts use local notifications with generic text and warn about three con
 - the camera's last confirmed location reaches five minutes old;
 - a ready foreground-only session stops because the app entered the background.
 
-A reconnect inside 10 seconds cancels the interruption alert. A later successful camera update cancels obsolete warnings and may report that the link was restored. Stop, Cancel, initial connection failure, unsupported profiles, and pairing do not send health alerts. Notification delivery is controlled by iOS and does not keep Bluetooth, Location, or the app running.
+A reconnect cancels any pending interruption alert and schedules the next stale-update deadline. The app does not post a separate recovery alert because iOS does not provide a race-free delivery confirmation for the earlier warning. Stop, Cancel, initial connection failure, unsupported profiles, and pairing do not send health alerts. Notification delivery is controlled by iOS and does not keep Bluetooth, Location, or the app running.
 
 The Effect Preview describes the concrete permission, accuracy, frequency, battery, and alert consequences before Apply. All choices are applied together. If application fails, the previous valid settings remain active.
 
