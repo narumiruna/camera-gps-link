@@ -49,6 +49,44 @@ final class CameraGPSLinkUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Cancel"].exists)
     }
 
+    func testFirstRunCanSelectAndExplicitlyPairWithoutLocationPermission() {
+        launch("pairing-first-run")
+        app.buttons["add-camera"].tap()
+        XCTAssertTrue(app.buttons["search-pairing-cameras"].waitForExistence(timeout: 5))
+        app.buttons["search-pairing-cameras"].tap()
+        let candidates = app.buttons.matching(identifier: "pairing-camera")
+        XCTAssertEqual(candidates.count, 2)
+        XCTAssertFalse(app.buttons["confirm-camera-pairing"].exists)
+        candidates.element(boundBy: 0).tap()
+        let confirm = app.buttons["confirm-camera-pairing"]
+        if !confirm.isHittable { app.swipeUp() }
+        XCTAssertTrue(confirm.waitForExistence(timeout: 3))
+        XCTAssertFalse(app.descendants(matching: .any)["pairing-complete"].exists)
+        confirm.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["pairing-complete"].waitForExistence(timeout: 3))
+        app.buttons["close-camera-pairing"].tap()
+        XCTAssertTrue(app.buttons["Start Geotagging"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Not requested"].exists)
+    }
+
+    func testPairingSearchCancellationAndBluetoothDenialAreRecoverable() {
+        launch("pairing-first-run")
+        app.buttons["add-camera"].tap()
+        app.buttons["search-pairing-cameras"].tap()
+        app.buttons["close-camera-pairing"].tap()
+        app.buttons["add-camera"].tap()
+        XCTAssertTrue(app.buttons["search-pairing-cameras"].isEnabled)
+        XCTAssertFalse(app.buttons["pairing-camera"].exists)
+        app.terminate()
+
+        launch("pairing-bluetooth-denied")
+        app.buttons["add-camera"].tap()
+        XCTAssertTrue(app.buttons["pairing-settings"].waitForExistence(timeout: 3))
+        app.buttons["search-pairing-cameras"].tap()
+        XCTAssertTrue(app.buttons["search-pairing-cameras"].isEnabled)
+        XCTAssertFalse(app.buttons["confirm-camera-pairing"].exists)
+    }
+
     func testIntermediateAndTerminalFixturesExposeClearState() {
         let fixtures: [(String, String)] = [
             ("connecting", "Connecting…"),
@@ -195,14 +233,20 @@ final class CameraGPSLinkUITests: XCTestCase {
     }
 
     func testPairingInitializationIsSeparateAndConfirmed() {
-        launch("not-connected")
+        launch("pairing-first-run")
         app.buttons["diagnostics-link"].tap()
         scrollUntilVisible(app.buttons["request-pairing-init"])
         XCTAssertTrue(app.buttons["request-pairing-init"].isHittable)
         app.buttons["request-pairing-init"].tap()
-        XCTAssertTrue(app.buttons["Send Pairing Initialization"].waitForExistence(timeout: 2))
-        app.buttons["Send Pairing Initialization"].tap()
-        waitForDisappearance(app.buttons["Send Pairing Initialization"])
+        XCTAssertTrue(app.buttons["search-pairing-cameras"].waitForExistence(timeout: 2))
+        app.buttons["search-pairing-cameras"].tap()
+        app.buttons.matching(identifier: "pairing-camera").element(boundBy: 0).tap()
+        let confirm = app.buttons["confirm-camera-pairing"]
+        scrollUntilVisible(confirm)
+        XCTAssertTrue(confirm.isHittable)
+        confirm.tap()
+        waitForDisappearance(confirm)
+        XCTAssertTrue(app.descendants(matching: .any)["pairing-complete"].exists)
     }
 
     func testDiagnosticsEmptyStateAndBoundedDenseLogRemainNavigable() {

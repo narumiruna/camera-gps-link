@@ -266,6 +266,14 @@ extension CameraBLEManager {
         manualStopRequested = true
         activeSessionRequested = false
         lastError = message
+        resumeWhenBluetoothPowersOn = false
+        if connectionIntent == .pairing {
+            pairingStatus = message
+            pairingConfirmationPending = false
+            experimentalApprovalPending = false
+            clearPairingCandidates()
+            centralManager.stopScan()
+        }
         state = .failed
         stopTimer()
         operationQueue.removeAll()
@@ -339,9 +347,13 @@ extension CameraBLEManager {
         sendTimer = nil
     }
 
+    var currentOperationTimeout: TimeInterval {
+        connectionIntent == .pairing ? 60 : operationTimeout
+    }
+
     func startOperationTimeout() {
         stopOperationTimeout()
-        operationTimeoutTimer = Timer.scheduledTimer(withTimeInterval: operationTimeout, repeats: false) {
+        operationTimeoutTimer = Timer.scheduledTimer(withTimeInterval: currentOperationTimeout, repeats: false) {
             [weak self] _ in
             self?.handleOperationTimeout()
         }
@@ -353,7 +365,10 @@ extension CameraBLEManager {
     }
 
     func startConnectionStageTimeout(_ stage: ForegroundConnectionStage) {
-        foregroundTimeoutSession.transition(to: stage)
+        let effectiveStage =
+            connectionIntent == .pairing && (stage == .connecting || stage == .discovering)
+            ? ForegroundConnectionStage.pairing : stage
+        foregroundTimeoutSession.transition(to: effectiveStage)
     }
 
     func cancelConnectionStageTimeout() {
@@ -361,12 +376,19 @@ extension CameraBLEManager {
     }
 
     func handleConnectionStageTimeout(stage: ForegroundConnectionStage) {
+        if connectionIntent == .pairing, stage == .scanning {
+            finishPairingSearch()
+            return
+        }
         manualStopRequested = true
         resumeWhenBluetoothPowersOn = false
         centralManager.stopScan()
         pendingReconnectArmed = false
-        let message =
-            "\(stage.userFacingName) timed out. Make sure the camera is nearby and ready for its Bluetooth location link."
+        let guidance =
+            connectionIntent == .pairing
+            ? "Turn on Bluetooth, open the camera pairing screen, and accept prompts on both devices. Search again to retry."
+            : "Make sure the camera is nearby and ready for its Bluetooth location link."
+        let message = "\(stage.userFacingName) timed out. \(guidance)"
         fail(message)
     }
 
@@ -374,7 +396,7 @@ extension CameraBLEManager {
         guard let pendingOperation else { return }
         recordTimedOutCallback(for: pendingOperation)
         self.pendingOperation = nil
-        appendLog("\(pendingOperation.name) timed out after \(Int(operationTimeout))s")
+        appendLog("\(pendingOperation.name) timed out after \(Int(currentOperationTimeout))s")
         if pendingOperation.name.hasPrefix("DD31 disable")
             || pendingOperation.name.hasPrefix("DD30 unlock")
             || pendingOperation.name.hasPrefix("DD01 notify stop")

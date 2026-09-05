@@ -44,6 +44,10 @@
 		F50000000000000000000006 /* HealthAlertIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000006 /* HealthAlertIntegrationTests.swift */; };
 		F50000000000000000000007 /* ConnectionHealthUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000007 /* ConnectionHealthUITests.swift */; };
 		F50000000000000000000008 /* GeotaggingHealthPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000008 /* GeotaggingHealthPresentation.swift */; };
+		F71000000000000000000001 /* CameraPairing.swift in Sources */ = {isa = PBXBuildFile; fileRef = F72000000000000000000001 /* CameraPairing.swift */; };
+		F71000000000000000000002 /* CameraBLEManager+Pairing.swift in Sources */ = {isa = PBXBuildFile; fileRef = F72000000000000000000002 /* CameraBLEManager+Pairing.swift */; };
+		F71000000000000000000003 /* CameraPairingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F72000000000000000000003 /* CameraPairingView.swift */; };
+		F71000000000000000000004 /* CameraPairingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F72000000000000000000004 /* CameraPairingTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -105,6 +109,10 @@
 		F60000000000000000000007 /* ConnectionHealthUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ConnectionHealthUITests.swift; sourceTree = "<group>"; };
 		F60000000000000000000008 /* GeotaggingHealthPresentation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GeotaggingHealthPresentation.swift; sourceTree = "<group>"; };
 		FB676953481397FF26F1462C /* DiagnosticsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
+		F72000000000000000000001 /* CameraPairing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPairing.swift; sourceTree = "<group>"; };
+		F72000000000000000000002 /* CameraBLEManager+Pairing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CameraBLEManager+Pairing.swift"; sourceTree = "<group>"; };
+		F72000000000000000000003 /* CameraPairingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPairingView.swift; sourceTree = "<group>"; };
+		F72000000000000000000004 /* CameraPairingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPairingTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -149,6 +157,7 @@
 			children = (
 				90A9F0D479AB410E42204A74 /* CameraGPSLinkUnitTests.swift */,
 				F40000000000000000000001 /* CameraBLEManagerTests.swift */,
+				F72000000000000000000004 /* CameraPairingTests.swift */,
 				F40000000000000000000002 /* SonyReleasePolicyTests.swift */,
 				F60000000000000000000004 /* ConnectionHealthTests.swift */,
 				F60000000000000000000006 /* HealthAlertIntegrationTests.swift */,
@@ -193,6 +202,9 @@
 				F20000000000000000000003 /* SonyCameraIdentityStore.swift */,
 				F20000000000000000000004 /* CameraBLEManager+CoreBluetooth.swift */,
 				F20000000000000000000005 /* CameraBLEManager+Operations.swift */,
+				F72000000000000000000001 /* CameraPairing.swift */,
+				F72000000000000000000002 /* CameraBLEManager+Pairing.swift */,
+				F72000000000000000000003 /* CameraPairingView.swift */,
 				F20000000000000000000006 /* SonyReleasePolicy.swift */,
 				F60000000000000000000001 /* ConnectionHealth.swift */,
 				F60000000000000000000002 /* ConnectionHealthMonitor.swift */,
@@ -346,6 +358,7 @@
 			files = (
 				A33D26C0EE99B9A5BF13F34E /* CameraGPSLinkUnitTests.swift in Sources */,
 				F30000000000000000000001 /* CameraBLEManagerTests.swift in Sources */,
+				F71000000000000000000004 /* CameraPairingTests.swift in Sources */,
 				F30000000000000000000002 /* SonyReleasePolicyTests.swift in Sources */,
 				F50000000000000000000004 /* ConnectionHealthTests.swift in Sources */,
 				F50000000000000000000006 /* HealthAlertIntegrationTests.swift in Sources */,
@@ -385,6 +398,9 @@
 				F10000000000000000000003 /* SonyCameraIdentityStore.swift in Sources */,
 				F10000000000000000000004 /* CameraBLEManager+CoreBluetooth.swift in Sources */,
 				F10000000000000000000005 /* CameraBLEManager+Operations.swift in Sources */,
+				F71000000000000000000001 /* CameraPairing.swift in Sources */,
+				F71000000000000000000002 /* CameraBLEManager+Pairing.swift in Sources */,
+				F71000000000000000000003 /* CameraPairingView.swift in Sources */,
 				F10000000000000000000006 /* SonyReleasePolicy.swift in Sources */,
 				F50000000000000000000001 /* ConnectionHealth.swift in Sources */,
 				F50000000000000000000002 /* ConnectionHealthMonitor.swift in Sources */,

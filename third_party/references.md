@@ -1,5 +1,9 @@
 # Third-party reference notes
 
+- Creators' App iOS BLE architecture — `docs/creators-app-ios-ble-research.md` (creators-app-ios-ble-research.md lines 40-104): records readable CoreBluetooth wrapper, advertisement, and app-side pairing-state symbols from `data/Payload/Creators App.app/Frameworks/IEMBLEModule_ios.framework/IEMBLEModule_ios`; implementation bodies are encrypted.
+- Creators' App pairing constant — `docs/creators-app-ios-ble-research.md` (creators-app-ios-ble-research.md lines 106-129): identifies `06 08 01 00 00 00 00` in the BLE framework executable's unencrypted initializer storage at file offsets `0x2c240..<0x2c247`; the destination EE01 mapping remains existing project evidence, not recovered IPA control flow.
+- Creators' App connection and background limits — `docs/creators-app-ios-ble-research.md` (creators-app-ios-ble-research.md lines 131-159): indexes `data/Payload/Creators App.app/en.lproj/Localizable.strings` pairing/recovery instructions and `Info.plist` background declarations without treating them as proof of runtime ordering, timeout values, or reconnect policy.
+
 - Modern Sony BLE location UUID map — `third_party/CameraSync/app/src/main/kotlin/dev/sebastiano/camerasync/vendors/sony/SonyGattSpec.kt` (SonyGattSpec.kt lines 18-68): defines DD01/DD11/DD21/DD30-DD33 and EE01 with access roles matching the A7C II GATT map.
 - Modern Sony DD11 encoder — `third_party/CameraSync/app/src/main/kotlin/dev/sebastiano/camerasync/vendors/sony/SonyProtocol.kt` (SonyProtocol.kt lines 181-250): implements the matching 91/95-byte big-endian packet, UTC timestamp, timezone/DST fields, and DD21 bit check.
 - Modern Sony location lifecycle — `third_party/CameraSync/app/src/main/kotlin/dev/sebastiano/camerasync/vendors/sony/SonyConnectionDelegate.kt` (SonyConnectionDelegate.kt lines 156-341): subscribes DD01, writes DD30 then DD31, reads DD32/DD33/DD21, and cleans up DD31 then DD30.

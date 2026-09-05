@@ -3,7 +3,11 @@ import Foundation
 
 extension CameraBLEManager: CBCentralManagerDelegate {
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        switch central.state {
+        handleBluetoothState(central.state)
+    }
+
+    func handleBluetoothState(_ bluetoothState: CBManagerState) {
+        switch bluetoothState {
         case .poweredOn:
             appendLog("Bluetooth powered on")
             if state == .bluetoothUnavailable {
@@ -11,6 +15,10 @@ extension CameraBLEManager: CBCentralManagerDelegate {
             }
             if resumeWhenBluetoothPowersOn {
                 resumeWhenBluetoothPowersOn = false
+                if connectionIntent == .pairing {
+                    scanForPairingCameras()
+                    return
+                }
                 guard locationProvider != nil else {
                     appendLog("Background link waiting for location provider")
                     return
@@ -18,6 +26,10 @@ extension CameraBLEManager: CBCentralManagerDelegate {
                 armBackgroundReconnect(reason: "Bluetooth powered on")
             }
         case .poweredOff, .unauthorized, .unsupported, .resetting, .unknown:
+            if connectionIntent == .pairing {
+                handlePairingBluetoothUnavailable(bluetoothState)
+                return
+            }
             cancelConnectionStageTimeout()
             if Self.disconnectLeavesCleanupIncomplete(acquisition) {
                 stopTimer()
@@ -36,7 +48,7 @@ extension CameraBLEManager: CBCentralManagerDelegate {
             } else {
                 state = .bluetoothUnavailable
             }
-            appendLog("Bluetooth state changed: \(central.state.rawValue)")
+            appendLog("Bluetooth state changed: \(bluetoothState.rawValue)")
         @unknown default:
             state = .bluetoothUnavailable
         }
@@ -48,11 +60,26 @@ extension CameraBLEManager: CBCentralManagerDelegate {
         advertisementData: [String: Any],
         rssi: NSNumber
     ) {
-        guard !manualStopRequested, !rejectedPeripheralIDs.contains(peripheral.identifier) else { return }
+        guard activeSessionRequested, state == .scanning, self.peripheral == nil,
+            !manualStopRequested, !rejectedPeripheralIDs.contains(peripheral.identifier)
+        else { return }
         let localName = advertisementData[CBAdvertisementDataLocalNameKey] as? String
         let name = peripheral.name ?? localName ?? ""
         let manufacturerData = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data
         let info = SonyProtocol.parseAdvertisement(manufacturerData: manufacturerData)
+        if connectionIntent == .pairing {
+            guard
+                let candidate = PairingCamera.discovered(
+                    id: peripheral.identifier,
+                    name: localName ?? peripheral.name,
+                    manufacturerData: manufacturerData,
+                    rssi: rssi.intValue,
+                    isConnectable: (advertisementData[CBAdvertisementDataIsConnectable] as? NSNumber)?.boolValue ?? true
+                )
+            else { return }
+            addPairingCandidate(candidate, peripheral: peripheral)
+            return
+        }
         let matchesName =
             name.localizedCaseInsensitiveContains(targetName) || name.localizedCaseInsensitiveContains("ILCE-")
         let matchesSonyCamera = info?.isCamera == true
@@ -75,7 +102,7 @@ extension CameraBLEManager: CBCentralManagerDelegate {
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        guard !manualStopRequested else {
+        guard !manualStopRequested, activeSessionRequested, self.peripheral === peripheral else {
             central.cancelPeripheralConnection(peripheral)
             return
         }
@@ -83,11 +110,12 @@ extension CameraBLEManager: CBCentralManagerDelegate {
         pendingReconnectArmed = attemptOrigin == .background
         reconnectRetryTimer?.invalidate()
         reconnectRetryTimer = nil
-        remember(peripheral: peripheral)
+        if connectionIntent != .pairing { remember(peripheral: peripheral) }
         beginServiceDiscovery(for: peripheral)
     }
 
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
+        guard self.peripheral === peripheral else { return }
         let wasForegroundAttempt = attemptOrigin == .foreground
         cancelConnectionStageTimeout()
         appendLog(error?.localizedDescription ?? "Failed to connect")
@@ -106,6 +134,7 @@ extension CameraBLEManager: CBCentralManagerDelegate {
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        guard self.peripheral === peripheral else { return }
         let shouldResumeCandidateScan = resumeScanAfterCandidateRejection && !manualStopRequested
         if !shouldResumeCandidateScan {
             resumeScanAfterCandidateRejection = false
@@ -123,6 +152,7 @@ extension CameraBLEManager: CBCentralManagerDelegate {
         }
         acquisition = SonyLocationAcquisition()
         self.peripheral = nil
+        pendingReconnectArmed = false
         stopTimer()
         stopOperationTimeout()
         operationQueue.removeAll()
@@ -217,7 +247,7 @@ extension CameraBLEManager: CBCentralManagerDelegate {
 
 extension CameraBLEManager: CBPeripheralDelegate {
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
-        guard !manualStopRequested else { return }
+        guard !manualStopRequested, activeSessionRequested, self.peripheral === peripheral else { return }
         if let error {
             fail(error.localizedDescription)
             return
@@ -258,7 +288,7 @@ extension CameraBLEManager: CBPeripheralDelegate {
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
-        guard !manualStopRequested else { return }
+        guard !manualStopRequested, activeSessionRequested, self.peripheral === peripheral else { return }
         if let error {
             fail(error.localizedDescription)
             return

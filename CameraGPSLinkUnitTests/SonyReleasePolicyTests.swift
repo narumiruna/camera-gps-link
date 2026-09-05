@@ -164,21 +164,36 @@ final class SonyReleasePolicyTests: XCTestCase {
         XCTAssertEqual(authorization.expectedPacketSize, 95)
     }
 
-    func testDevelopmentKeepsVolatileExperimentalApproval() {
+    func testDevelopmentSkipsApprovalOnlyForExactQualificationCandidate() {
         let fixture = makeCandidate()
-        let decision = SonyReleasePolicy(mode: .development).evaluate(
+        let policy = SonyReleasePolicy(mode: .development)
+        let compatibility = SonyCompatibility(confidence: .experimental, evidence: nil)
+        let exactDecision = policy.evaluate(
             identity: fixture.identity,
             profile: fixture.profile,
             descriptors: fixture.descriptors,
-            genericCompatibility: SonyCompatibility(confidence: .experimental, evidence: nil)
+            genericCompatibility: compatibility
         )
 
-        guard case .proceed(let authorization) = decision else {
-            return XCTFail("Development fixture should reach approval")
+        guard case .proceed(let exactAuthorization) = exactDecision else {
+            return XCTFail("Exact qualification candidate should proceed")
         }
-        XCTAssertTrue(authorization.requiresExperimentalApproval)
-        XCTAssertNil(authorization.expectedPacketSize)
-        XCTAssertTrue(SonyReleasePolicy(mode: .development).allowsExperimentalApproval)
+        XCTAssertFalse(exactAuthorization.requiresExperimentalApproval)
+        XCTAssertEqual(exactAuthorization.expectedPacketSize, 95)
+        XCTAssertEqual(exactAuthorization.confidence, .experimental)
+
+        let genericDecision = policy.evaluate(
+            identity: SonyCameraIdentity(model: "ILCE-7M4", firmware: "4.00", protocolVersion: 101),
+            profile: fixture.profile,
+            descriptors: fixture.descriptors,
+            genericCompatibility: compatibility
+        )
+        guard case .proceed(let genericAuthorization) = genericDecision else {
+            return XCTFail("Generic development fixture should reach approval")
+        }
+        XCTAssertTrue(genericAuthorization.requiresExperimentalApproval)
+        XCTAssertNil(genericAuthorization.expectedPacketSize)
+        XCTAssertTrue(policy.allowsExperimentalApproval)
     }
 
     func testQualificationPairingRequiresExactEE01EndpointShape() {
@@ -280,7 +295,7 @@ final class SonyReleasePolicyTests: XCTestCase {
     }
 
     @MainActor
-    func testQualificationLocationAndPairingBeginWithReadOnlyDD21Preflight() {
+    func testQualificationKeepsDD21ForLocationButDoesNotRequireItBeforePairing() {
         let missingPairingEndpoint = makeCandidate()
         let rejectedPairingManager = makeManager(policy: SonyReleasePolicy(mode: .qualification))
         rejectedPairingManager.activeSessionRequested = true
@@ -307,13 +322,13 @@ final class SonyReleasePolicyTests: XCTestCase {
 
             manager.resolveDiscoveredProfile()
 
-            XCTAssertEqual(manager.sanitizedOperationOrder, ["DD21 preflight"])
+            XCTAssertEqual(manager.sanitizedOperationOrder, intent == .location ? ["DD21 preflight"] : [])
             XCTAssertFalse(manager.sanitizedOperationOrder.contains("DD01 notify"))
             XCTAssertFalse(manager.sanitizedOperationOrder.contains("DD30 lock"))
             XCTAssertFalse(manager.sanitizedOperationOrder.contains("DD31 enable"))
             XCTAssertFalse(manager.sanitizedOperationOrder.contains("DD11 location"))
             XCTAssertFalse(manager.sanitizedOperationOrder.contains("EE01 pairing init"))
-            XCTAssertFalse(manager.pairingConfirmationPending)
+            XCTAssertEqual(manager.pairingConfirmationPending, intent == .pairing)
         }
     }
 

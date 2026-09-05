@@ -7,6 +7,7 @@ import SwiftUI
 struct ContentView: View {
     @ObservedObject var appModel: CameraGPSLinkAppModel
     @State private var showsSettings = false
+    @State private var showsPairing = false
 
     var body: some View {
         NavigationStack {
@@ -20,6 +21,15 @@ struct ContentView: View {
                 }
             )
             .navigationTitle("Camera GPS Link")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Add Camera", systemImage: "plus") { showsPairing = true }
+                        .accessibilityIdentifier("add-camera")
+                }
+            }
+            .sheet(isPresented: $showsPairing) {
+                CameraPairingView(appModel: appModel)
+            }
             .sheet(isPresented: $showsSettings) {
                 LinkSettingsView(
                     current: appModel.settings,
