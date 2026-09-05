@@ -19,6 +19,9 @@ final class CameraBLEManager: NSObject, ObservableObject {
     @Published var experimentalApprovalPending = false
     @Published var pairingConfirmationPending = false
     @Published var pairingStatus = "Not requested"
+    @Published var pairingCameras: [PairingCamera] = []
+    @Published var pairingCompleted = false
+    var pairingPeripherals: [UUID: CBPeripheral] = [:]
     @Published var cleanupDiagnostic: String?
     @Published var sanitizedOperationOrder: [String] = []
     @Published var lastError: String?
@@ -138,6 +141,7 @@ final class CameraBLEManager: NSObject, ObservableObject {
 
     var canStart: Bool {
         guard peripheral == nil,
+            !(connectionIntent == .pairing && resumeWhenBluetoothPowersOn),
             !compensationInProgress,
             pendingOperation == nil,
             !cancelAfterCurrentOperation
@@ -183,6 +187,10 @@ final class CameraBLEManager: NSObject, ObservableObject {
 
     func handleScenePhase(isForeground: Bool) {
         self.isForeground = isForeground
+        if !isForeground, connectionIntent == .pairing {
+            cancelPairingInitialization()
+            return
+        }
         guard !isForeground, !backgroundLinkEnabled else { return }
         stopTimer()
         guard
@@ -225,7 +233,7 @@ final class CameraBLEManager: NSObject, ObservableObject {
 
     func resumeBackgroundLink(locationProvider: @escaping () -> CLLocation?) {
         setLocationProvider(locationProvider)
-        guard backgroundLinkEnabled else { return }
+        guard backgroundLinkEnabled, connectionIntent != .pairing else { return }
         guard userLinkIntentActive else {
             appendLog("Ignoring automatic resume without active link intent")
             return
@@ -250,6 +258,7 @@ final class CameraBLEManager: NSObject, ObservableObject {
         cancelConnectionStageTimeout()
         resumeWhenBluetoothPowersOn = false
         centralManager.stopScan()
+        clearPairingCandidates()
         disarmPendingReconnect()
         stopTimer()
         experimentalApprovalPending = false
@@ -302,6 +311,9 @@ final class CameraBLEManager: NSObject, ObservableObject {
         experimentalApprovalPending = false
         pairingConfirmationPending = false
         pairingStatus = "Not requested"
+        pairingCompleted = false
+        clearPairingCandidates()
+        resumeWhenBluetoothPowersOn = false
         cleanupDiagnostic = nil
         sanitizedOperationOrder.removeAll()
         characteristics.removeAll()
@@ -534,7 +546,7 @@ final class CameraBLEManager: NSObject, ObservableObject {
         case .unsupported(let rejection):
             supportConfidence = .unsupported
             appendResolvedProfile(identity: identity, profile: profile)
-            if rejection.shouldContinueScanning, peripheral != nil {
+            if rejection.shouldContinueScanning, peripheral != nil, connectionIntent != .pairing {
                 skipCurrentCandidateAndContinueScanning(rejection.message)
             } else {
                 rejectUnsupportedProfile(rejection.message)
@@ -543,7 +555,12 @@ final class CameraBLEManager: NSObject, ObservableObject {
             releaseAuthorization = authorization
             supportConfidence = authorization.confidence
             appendResolvedProfile(identity: identity, profile: profile)
-            beginDD21Preflight()
+            if connectionIntent == .pairing {
+                // DD21 is a location preflight, not a prerequisite for first-time pairing.
+                completeReadOnlyPreflight()
+            } else {
+                beginDD21Preflight()
+            }
         }
     }
 
@@ -612,77 +629,6 @@ final class CameraBLEManager: NSObject, ObservableObject {
         } else {
             beginLocationSetup()
         }
-    }
-
-    func requestPairingInitialization() {
-        guard canStart else {
-            pairingStatus = "Stop the active location session before starting pairing."
-            return
-        }
-        manualStopRequested = false
-        prepareForNewSession(resetCounters: true)
-        connectionIntent = .pairing
-        attemptOrigin = .foreground
-        activeSessionRequested = true
-        pairingStatus = "Discovering camera identity before pairing confirmation"
-        foregroundTimeoutSession.begin()
-        guard centralManager.state == .poweredOn else {
-            activeSessionRequested = false
-            foregroundTimeoutSession.end()
-            state = .bluetoothUnavailable
-            pairingStatus = "Bluetooth is unavailable"
-            return
-        }
-        connectToRememberedCameraOrScan()
-    }
-
-    func presentPairingConfirmation() {
-        guard connectionIntent == .pairing,
-            didCompleteIdentityDiscovery,
-            descriptor(SonyProtocol.pairingInitUUID)?.properties.contains(.write) == true
-        else {
-            pairingStatus = "EE01 write-with-response is unavailable in the current session."
-            fail(pairingStatus)
-            return
-        }
-        cancelConnectionStageTimeout()
-        pairingConfirmationPending = true
-        pairingStatus = "Confirmation required for \(currentIdentity?.normalizedModel ?? "unknown camera")"
-        state = .pairing
-    }
-
-    func confirmPairingInitialization() {
-        guard connectionIntent == .pairing,
-            pairingConfirmationPending,
-            !experimentalApprovalPending,
-            currentIdentity != nil
-        else { return }
-        pairingConfirmationPending = false
-        pairingStatus = "Sending explicit EE01 pairing initialization"
-        state = .pairing
-        enqueueWrite(
-            name: "EE01 pairing init",
-            uuid: SonyProtocol.pairingInitUUID,
-            data: SonyProtocol.pairingInitPayload,
-            required: true
-        )
-        onQueueEmpty = { [weak self] in
-            guard let self else { return }
-            self.pairingStatus = "Pairing initialization sent"
-            self.attemptOrigin = .none
-            self.activeSessionRequested = false
-            self.state = .stopped
-            if let peripheral = self.peripheral {
-                self.centralManager.cancelPeripheralConnection(peripheral)
-            }
-        }
-        runNextOperationIfNeeded()
-    }
-
-    func cancelPairingInitialization() {
-        pairingConfirmationPending = false
-        pairingStatus = "Cancelled without a GATT write"
-        cancelCurrentAttempt()
     }
 
     func beginLocationSetup() {

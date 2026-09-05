@@ -37,6 +37,7 @@ struct CameraServiceSnapshot: Equatable {
     var pendingReconnectArmed: Bool
     var activeLinkIntent: Bool
     var updateInterval: TimeInterval
+    var pairing = CameraPairingSnapshot()
 }
 
 struct LocationServiceSnapshot {
@@ -60,6 +61,7 @@ protocol CameraLinkServicing: AnyObject {
     func cancelCurrentAttempt()
     func approveExperimentalProfile()
     func requestPairingInitialization()
+    func selectPairingCamera(id: UUID)
     func confirmPairingInitialization()
     func cancelPairingInitialization()
     func stopLink()
@@ -117,7 +119,8 @@ final class CameraBLEServiceAdapter: CameraLinkServicing {
             lastError: manager.lastError,
             pendingReconnectArmed: manager.pendingReconnectArmed,
             activeLinkIntent: manager.userLinkIntentActive,
-            updateInterval: manager.updateInterval
+            updateInterval: manager.updateInterval,
+            pairing: manager.pairingSnapshot
         )
     }
 
@@ -155,6 +158,10 @@ final class CameraBLEServiceAdapter: CameraLinkServicing {
 
     func requestPairingInitialization() {
         manager.requestPairingInitialization()
+    }
+
+    func selectPairingCamera(id: UUID) {
+        manager.selectPairingCamera(id: id)
     }
 
     func confirmPairingInitialization() {
@@ -475,7 +482,19 @@ final class CameraGPSLinkAppModel: ObservableObject {
     }
 
     func requestPairingInitialization() {
+        guard cameraService.snapshot.pairing.canSearch else { return }
+        // Pairing is independent of location permission and never resumes a geotagging request.
+        pendingStart = false
+        linkRequested = false
+        transientError = nil
+        healthMonitor.endSession()
+        locationService.stopUpdating()
         cameraService.requestPairingInitialization()
+        refreshViewState()
+    }
+
+    func selectPairingCamera(id: UUID) {
+        cameraService.selectPairingCamera(id: id)
         refreshViewState()
     }
 

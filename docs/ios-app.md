@@ -6,6 +6,24 @@ Historical verified baseline: Sony A7C II / `ILCE-7CM2` firmware `2.01`, protoco
 The first public iOS App Store release will support only this camera and will not expose experimental writes for other models.
 See the accepted [`A7C II-only iOS App Store release plan`](plans/2026-08-31_ios-a7c2-only-app-store-release-plan.md) and the current [`compatibility matrix`](sony-camera-compatibility.md).
 
+## Add a camera for the first time
+
+Pairing does not require Location permission or a remembered camera. Existing distribution-policy restrictions still apply: public Release cannot write to identities absent from its verified allowlist, which currently remains empty.
+
+1. Stop any active geotagging session and tap **Add Camera** on the home screen.
+2. Enable Bluetooth on the camera and open **Bluetooth → Pairing** or **Smartphone Connection**, depending on the model.
+3. Tap **Search for Cameras**. Allow Bluetooth access when iOS asks. If Bluetooth is off, turn it on in iPhone Settings; the app cannot enable it itself. A pending foreground search resumes when Bluetooth becomes ready, unless cancelled or timed out.
+4. Select the intended camera from the list. Search uses Sony manufacturer data and connectable advertisements, not just a matching name. It does not automatically connect to the first result or a remembered device.
+5. Accept any system and camera pairing prompts during identity reads. Development builds may request experimental-profile approval; qualification and public Release retain exact identity/descriptor checks.
+6. Confirm that the camera remains on its pairing screen, then tap **Pair with This Camera**. This sends EE01 once with response, without starting location sharing.
+7. After **Pairing Initialization Accepted**, tap **Done**, enable **Location Info. Link** on the camera, return to shooting mode, and start geotagging.
+
+The completion message means the camera acknowledged the pairing initialization write, not that the app independently inspected the iOS bond. A subsequent location session verifies the usable location link.
+
+Search lasts 15 seconds and retains any results for selection. Waiting for Bluetooth is bounded to 60 seconds; pairing connection/discovery stages to 120 seconds; individual identity reads and the pairing write to 60 seconds. Cancel or sheet dismissal stops pairing; entering the background also cancels it even when background geotagging is configured. A system permission prompt only makes the app inactive, so it does not cancel pairing. Returning from iPhone Settings after background cancellation requires a new search.
+
+If permission is denied, use **Open iPhone Settings**. If pairing records are inconsistent, forget the camera in iPhone Bluetooth settings and remove the iPhone in the camera's **Manage Paired Device** menu, then repeat the procedure. These actions remain user-controlled; the app cannot delete an iOS bond.
+
 ## Geotagging workflow
 
 The home screen is organized around shooting readiness rather than BLE protocol details:
@@ -90,13 +108,13 @@ Diagnostic logs can include recent coordinates. Review the warning and log conte
 
 The app resolves behavior from complete Sony CC/DD/EE service discovery and required characteristic properties:
 
-- **Modern:** protocol `>=65`, DD11/DD21, and write-with-response DD30/DD31. Read-only preflight strictly validates DD21 before any approval, notification subscription, or write. An authorized session then optionally subscribes DD01, writes DD30 then DD31, optionally reads DD32/DD33, and sends DD11.
+- **Modern:** protocol `>=65`, DD11/DD21, and write-with-response DD30/DD31. Location-session read-only preflight strictly validates DD21 before any approval, notification subscription, or write. An authorized session then optionally subscribes DD01, writes DD30 then DD31, optionally reads DD32/DD33, and sends DD11.
 - **Legacy:** known protocol `<65`, DD11/DD21, and both DD30/DD31 absent. Read-only preflight validates DD21 before an authorized session sends DD11 without controls or notifications.
-- **Unsupported:** missing/wrong properties, partial controls, inconsistent protocol shape, unknown-version legacy shape, a blocked registry identity, or a distribution-policy mismatch. It performs no subscription or application write. Exact-target builds skip a non-target Sony candidate and continue the bounded scan for another camera.
+- **Unsupported:** missing/wrong properties, partial controls, inconsistent protocol shape, unknown-version legacy shape, a blocked registry identity, or a distribution-policy mismatch. It performs no subscription or application write. During automatic location search, exact-target builds skip a non-target Sony candidate and continue the bounded scan for another camera. Explicit pairing rejects an unsupported selection instead of silently switching to another camera.
 
 Strict DD21 accepts only evidence-backed 6/7-byte framing and controls the 95- or 91-byte DD11 packet. Qualification and public Release entries may require one exact packet size. Failure, cancellation, and timeout compensate every dispatched, possibly applied modern control in DD31-then-DD30 order. Cleanup cannot be disabled.
 
-Ordinary and experimental location sessions never send EE01. Diagnostics exposes **Initialize Camera Pairing** as a separate confirmed action after the active location session is stopped. It performs fresh identity/profile/descriptor discovery, strict DD21 preflight, and the same distribution-policy packet-size validation before showing the final EE01 confirmation. Only development builds may require and accept an experimental pairing approval. The camera must be explicitly on its pairing screen.
+Ordinary and experimental location sessions never send EE01. **Add Camera** and Diagnostics → **Search and Pair Camera** open the same separate pairing flow. It performs fresh identity/profile/descriptor discovery and distribution-policy checks before final EE01 confirmation. Pairing does not read DD21 or negotiate a location packet size: those location-only checks run in the later location session, avoiding a location-preflight dependency before Sony pairing initialization. Identity reads can trigger iOS bonding prompts. Only development builds may require and accept experimental pairing approval. The camera must be explicitly on its pairing screen.
 
 ## Build and test
 

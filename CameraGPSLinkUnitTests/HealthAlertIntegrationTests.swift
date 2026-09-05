@@ -236,6 +236,7 @@ private final class HealthTestCameraService: CameraLinkServicing {
     func cancelCurrentAttempt() {}
     func approveExperimentalProfile() {}
     func requestPairingInitialization() {}
+    func selectPairingCamera(id: UUID) {}
     func confirmPairingInitialization() {}
     func cancelPairingInitialization() {}
     func stopLink() {}

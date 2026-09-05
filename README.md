@@ -23,6 +23,8 @@ The Python `sonygeotag` CLI, BLE diagnostics, and EXIF verification tools are ma
 
 ## Geotagging workflow
 
+First use: tap **Add Camera** → **Search for Cameras**, select your camera, and follow the iPhone/camera pairing prompts. Tap **Pair with This Camera** only while the camera is on its pairing screen. This flow does not require Location permission. See [first-time pairing](docs/ios-app.md#add-a-camera-for-the-first-time) for Bluetooth recovery and build-policy restrictions.
+
 1. Turn on the camera and make its Bluetooth location link available.
 2. Open Camera GPS Link and tap **Start Geotagging**.
 3. Grant the requested Location and Bluetooth permissions.

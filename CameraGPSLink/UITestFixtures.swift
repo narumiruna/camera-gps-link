@@ -29,6 +29,12 @@
                 break
             case "first-run":
                 permission = .notDetermined
+            case "pairing-first-run":
+                permission = .notDetermined
+                camera.pairing.bluetooth = .ready
+            case "pairing-bluetooth-denied":
+                permission = .notDetermined
+                camera.pairing.bluetooth = .denied
             case "searching":
                 camera.state = .scanning
             case "connecting":
@@ -237,20 +243,49 @@
         }
 
         func requestPairingInitialization() {
+            snapshot.pairing.isPairing = true
+            snapshot.pairing.completed = false
+            if snapshot.pairing.bluetooth == .denied {
+                snapshot.state = .failed
+                snapshot.pairingStatus = snapshot.pairing.bluetooth.guidance
+            } else {
+                snapshot.state = .scanning
+                snapshot.pairing.canSearch = false
+                snapshot.pairingStatus = "Select your camera."
+                snapshot.pairing.cameras = [
+                    PairingCamera(id: UUID(), name: "ILCE-7CM2", rssi: -45, protocolVersion: 101),
+                    PairingCamera(id: UUID(), name: "ILCE-7M4", rssi: -65, protocolVersion: 101),
+                ]
+            }
+            onChange?()
+        }
+
+        func selectPairingCamera(id: UUID) {
+            guard let candidate = snapshot.pairing.cameras.first(where: { $0.id == id }) else { return }
+            snapshot.discoveredCameraName = candidate.name
+            snapshot.pairing.cameras = []
             snapshot.pairingConfirmationPending = true
-            snapshot.pairingStatus = "Confirmation required"
+            snapshot.state = .pairing
+            snapshot.pairingStatus = "Confirm that \(candidate.name) is on its pairing screen."
             onChange?()
         }
 
         func confirmPairingInitialization() {
+            guard snapshot.pairingConfirmationPending else { return }
             snapshot.pairingConfirmationPending = false
-            snapshot.pairingStatus = "Pairing initialization sent"
+            snapshot.pairingStatus = "Camera accepted pairing initialization."
+            snapshot.pairing.completed = true
+            snapshot.pairing.canSearch = true
+            snapshot.state = .stopped
             onChange?()
         }
 
         func cancelPairingInitialization() {
+            guard snapshot.pairing.isPairing else { return }
             snapshot.pairingConfirmationPending = false
-            snapshot.pairingStatus = "Cancelled without a GATT write"
+            snapshot.pairing.cameras = []
+            snapshot.pairing.canSearch = true
+            snapshot.state = .stopped
             onChange?()
         }
 

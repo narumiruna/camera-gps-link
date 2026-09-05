@@ -5,6 +5,8 @@ enum ForegroundConnectionStage: Equatable {
     case connecting
     case discovering
     case preparing
+    case bluetooth
+    case pairing
 
     var userFacingName: String {
         switch self {
@@ -16,6 +18,10 @@ enum ForegroundConnectionStage: Equatable {
             "Service discovery"
         case .preparing:
             "Location setup"
+        case .bluetooth:
+            "Bluetooth readiness"
+        case .pairing:
+            "Camera pairing"
         }
     }
 }
@@ -25,6 +31,8 @@ struct ForegroundConnectionTimeoutPolicy: Equatable {
     var connectTimeout: TimeInterval = 15
     var discoveryTimeout: TimeInterval = 15
     var preparationTimeout: TimeInterval = 45
+    var bluetoothTimeout: TimeInterval = 60
+    var pairingTimeout: TimeInterval = 120
 
     func timeout(for stage: ForegroundConnectionStage) -> TimeInterval {
         switch stage {
@@ -36,6 +44,10 @@ struct ForegroundConnectionTimeoutPolicy: Equatable {
             discoveryTimeout
         case .preparing:
             preparationTimeout
+        case .bluetooth:
+            bluetoothTimeout
+        case .pairing:
+            pairingTimeout
         }
     }
 }

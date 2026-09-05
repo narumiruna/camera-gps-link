@@ -280,7 +280,7 @@ final class SonyReleasePolicyTests: XCTestCase {
     }
 
     @MainActor
-    func testQualificationLocationAndPairingBeginWithReadOnlyDD21Preflight() {
+    func testQualificationKeepsDD21ForLocationButDoesNotRequireItBeforePairing() {
         let missingPairingEndpoint = makeCandidate()
         let rejectedPairingManager = makeManager(policy: SonyReleasePolicy(mode: .qualification))
         rejectedPairingManager.activeSessionRequested = true
@@ -307,13 +307,13 @@ final class SonyReleasePolicyTests: XCTestCase {
 
             manager.resolveDiscoveredProfile()
 
-            XCTAssertEqual(manager.sanitizedOperationOrder, ["DD21 preflight"])
+            XCTAssertEqual(manager.sanitizedOperationOrder, intent == .location ? ["DD21 preflight"] : [])
             XCTAssertFalse(manager.sanitizedOperationOrder.contains("DD01 notify"))
             XCTAssertFalse(manager.sanitizedOperationOrder.contains("DD30 lock"))
             XCTAssertFalse(manager.sanitizedOperationOrder.contains("DD31 enable"))
             XCTAssertFalse(manager.sanitizedOperationOrder.contains("DD11 location"))
             XCTAssertFalse(manager.sanitizedOperationOrder.contains("EE01 pairing init"))
-            XCTAssertFalse(manager.pairingConfirmationPending)
+            XCTAssertEqual(manager.pairingConfirmationPending, intent == .pairing)
         }
     }
 

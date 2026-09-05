@@ -880,6 +880,7 @@ private final class FakeCameraService: CameraLinkServicing {
     func cancelCurrentAttempt() { cancels += 1 }
     func approveExperimentalProfile() {}
     func requestPairingInitialization() {}
+    func selectPairingCamera(id: UUID) {}
     func confirmPairingInitialization() {}
     func cancelPairingInitialization() {}
     func stopLink() { stops += 1 }

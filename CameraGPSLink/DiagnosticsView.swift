@@ -8,6 +8,7 @@ struct DiagnosticsView: View {
     @ObservedObject private var appModel: CameraGPSLinkAppModel
     @ObservedObject private var logStore: DiagnosticsLogStore
     @State private var didCopy = false
+    @State private var showsPairing = false
 
     init(appModel: CameraGPSLinkAppModel) {
         _appModel = ObservedObject(wrappedValue: appModel)
@@ -58,20 +59,8 @@ struct DiagnosticsView: View {
                 )
                 .font(.footnote)
                 .foregroundStyle(.secondary)
-                Button("Initialize Camera Pairing") {
-                    appModel.requestPairingInitialization()
-                }
-                .disabled(![.idle, .stopped, .failed, .unsupported].contains(camera.state))
-                .accessibilityIdentifier("request-pairing-init")
-                if camera.experimentalApprovalPending {
-                    Button("Approve Experimental Pairing Profile") {
-                        appModel.approveExperimentalProfile()
-                    }
-                    .accessibilityIdentifier("approve-experimental-pairing")
-                    Button("Cancel Pairing", role: .cancel) {
-                        appModel.cancelPairingInitialization()
-                    }
-                }
+                Button("Search and Pair Camera") { showsPairing = true }
+                    .accessibilityIdentifier("request-pairing-init")
             }
 
             Section("Health Alerts") {
@@ -138,22 +127,8 @@ struct DiagnosticsView: View {
             .navigationBarTitleDisplayMode(.inline)
         #endif
         .accessibilityIdentifier("diagnostics-view")
-        .confirmationDialog(
-            "Send Sony pairing initialization?",
-            isPresented: Binding(
-                get: { camera.pairingConfirmationPending },
-                set: { if !$0 { appModel.cancelPairingInitialization() } }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button("Send Pairing Initialization") {
-                appModel.confirmPairingInitialization()
-            }
-            Button("Cancel", role: .cancel) {
-                appModel.cancelPairingInitialization()
-            }
-        } message: {
-            Text("This writes EE01 once. Confirm the camera is on its Bluetooth pairing screen.")
+        .sheet(isPresented: $showsPairing) {
+            CameraPairingView(appModel: appModel)
         }
     }
 
