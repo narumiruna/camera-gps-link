@@ -21,3 +21,6 @@ DerivedData/
 # Third-party checkouts stay local; keep only the curated reference index.
 third_party/*
 !third_party/references.md
+
+# data
+data/
