@@ -24,3 +24,7 @@ third_party/*
 
 # data
 data/
+
+# skills
+.agents/skills
+skills-lock.json
