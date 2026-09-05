@@ -141,6 +141,21 @@ struct SonyReleasePolicy: Equatable {
                     )
                 )
             }
+            if let entry = matchingEntry(
+                in: qualificationEntries,
+                identity: identity,
+                profile: profile,
+                descriptors: descriptors,
+                requiresPairingEndpoint: requiresPairingEndpoint
+            ) {
+                return .proceed(
+                    SonyReleaseAuthorization(
+                        requiresExperimentalApproval: false,
+                        expectedPacketSize: entry.packetSize,
+                        confidence: .experimental
+                    )
+                )
+            }
             return .proceed(
                 SonyReleaseAuthorization(
                     requiresExperimentalApproval: true,

@@ -32,7 +32,7 @@ The home screen is organized around shooting readiness rather than BLE protocol 
 2. Tap **Start Geotagging**.
 3. Grant location access when iOS asks. Camera GPS Link does not start the camera write flow before usable permission is available.
 4. Follow the visible stages: looking for the camera, connecting, identity/profile discovery, preparing location, and sending the first location.
-5. Development builds may show **Experimental Camera Profile** only after read-only identity, descriptor, and strict DD21 preflight; Cancel performs no subscription or application write. Qualification and public Release builds never offer this override.
+5. Development builds may show **Experimental Camera Profile** only after read-only identity, descriptor, and strict DD21 preflight; Cancel performs no subscription or application write. The exact A7C II qualification candidate may proceed without this volatile approval after recorded development evidence, while qualification and public Release builds never offer the override.
 6. Wait for **Ready to Geotag** before taking photos that need location data.
 
 **Ready to Geotag** appears only after the camera has successfully received at least one location packet in the current session. The Readiness group separately reports the camera, iPhone location, and last successful camera update.
@@ -158,7 +158,7 @@ A physical iPhone is still required to validate real CoreBluetooth behavior, bac
 
 ## Known limitations
 
-- The exact A7C II baseline is historical evidence only; runtime confidence remains experimental until the external Python evidence is current and a separately authorized post-refactor iOS EXIF regression passes.
+- The exact A7C II candidate has current Python and iOS development foreground EXIF evidence, but public runtime confidence remains experimental until a Release-equivalent iOS qualification run passes.
 - A7 III, A7 IV, A6700, A7R V, A7S III, A1, ZV-E1, and ZV-E10 II remain unverified until their exact rows have independent evidence.
 - Public Release background operation is disabled until physical qualification passes. Development and qualification background execution remains opportunistic and cannot guarantee a fresh location immediately before every shutter release.
 - The app updates the camera’s cached location for new photos; it does not modify existing images.

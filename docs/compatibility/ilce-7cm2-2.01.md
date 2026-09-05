@@ -133,10 +133,39 @@ The user explicitly accepted camera-native HEIF evidence instead of JPEG. A zero
 
 ## iOS foreground result
 
-Pending separate explicit write authorization, approved current-phone/test coordinates, and a separate new JPEG or HEIF image captured during the active location session.
+- Platform/app version: `iPhone 16 Pro`, development (`DEBUG`) build at `b0c8869`
+- Explicit write authorization: `2026-09-06`, current iPhone coordinates approved for bounded A7C II testing
+- Experimental confirmation reviewed: `yes`
+- Approved coordinate: `25.0260469, 121.5313468`, reported accuracy `±5 m`
+- Active location window: confirmed active by `2026-09-06T01:16:08+08:00` and stopped by `2026-09-06T01:19:30+08:00`
+- DD11 success/not-before bound: `2026-09-06T01:16:08+08:00`, when the app already reported **Ready to Geotag** and a current camera update
+- Packet size: `95`
+- Packets accepted: `11`
+- Sanitized operation order: `CC0B model → CC0A firmware → DD21 preflight → DD01 notify → DD30 lock → DD31 enable → DD32 time correction → DD33 area adjustment → DD11 location ×11 → DD31 disable → DD30 unlock → stop DD01 notify`
+- New image format/capture time: `HEIF` / `2026-09-06T01:17:07+08:00`
+- Cleanup diagnostic: `Cleanup complete`
+- Result: `pass for the development foreground workflow`
+
+```json
+{
+  "capture_time": "2026-09-06T01:17:07+08:00",
+  "capture_time_source": "EXIF original time + offset",
+  "coordinate_tolerance_degrees": 0.0001,
+  "expected_latitude": 25.0260469,
+  "expected_longitude": 121.5313468,
+  "image_format": "HEIF",
+  "latitude": 25.026065833333334,
+  "longitude": 121.53133277777778,
+  "not_before": "2026-09-06T01:16:08+08:00",
+  "verified": true
+}
+```
+
+The source HEIF remains outside the repository.
+The development policy may now reuse this exact qualification candidate without volatile approval, while other unverified development profiles remain approval-gated.
 
 ## Qualification result
 
-- Exact model/firmware/protocol/profile: `Python foreground verified; full cross-platform qualification pending iOS`
-- Deviations or cleanup diagnostics: `none on the passing Python session`
-- Reviewer/date: `Python evidence recorded 2026-08-09`
+- Exact model/firmware/protocol/profile: `Python foreground verified; iOS development foreground verified; Release-equivalent qualification pending`
+- Deviations or cleanup diagnostics: `no protocol, EXIF, or cleanup deviation; the iOS run used DEBUG rather than QUALIFICATION`
+- Reviewer/date: `Python evidence recorded 2026-08-09; iOS development evidence recorded 2026-09-06`

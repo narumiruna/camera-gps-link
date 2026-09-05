@@ -15,7 +15,7 @@ Until background behavior passes physical qualification, public Release builds m
 
 | Mode | Compatibility behavior | Experimental approval | Background option |
 | --- | --- | --- | --- |
-| Development (`DEBUG`) | Generic executable profiles remain available for fixtures and explicit session approval. | Allowed | Available |
+| Development (`DEBUG`) | The exact qualification candidate may proceed from recorded development evidence; other generic executable profiles remain available for fixtures and explicit session approval. | Allowed for unmatched executable profiles | Available |
 | Qualification (`QUALIFICATION`) | Only the exact A7C II `2.01` candidate identity, descriptor fingerprint, modern profile, protocol `101`, and 95-byte packet may proceed. | Not allowed | Available for physical qualification |
 | Public Release | Only exact entries in the verified public registry may proceed. The registry remains empty until physical iOS qualification passes. | Not allowed | Hidden and forced off until qualification passes |
 
@@ -80,7 +80,7 @@ Add or update tests proving:
 - Exact A7C II candidate matching succeeds only in qualification mode.
 - Model, firmware, protocol, profile, descriptor, and packet-size mismatches fail closed.
 - Public Release rejects the candidate while the verified registry is empty.
-- Development retains explicit experimental approval.
+- Development retains explicit experimental approval for unmatched executable profiles and skips it only for an exact qualification-candidate match.
 - Qualification and public Release never expose experimental override.
 - DD21 preflight occurs before notification and writes.
 - Rejected location and pairing requests enqueue no DD01, DD30, DD31, DD11, or EE01 operation.
