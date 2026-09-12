@@ -21,8 +21,7 @@ Background operation is disabled in the first public Release until physical qual
 
 ## Contact
 
-Search existing reports or [open a support issue](https://github.com/narumiruna/camera-gps-link/issues).
-Repository access is currently required; public support and privacy-document hosting remains a pre-release requirement.
+Open **Link Settings → Help → Support**, search existing reports, or [open a support issue](https://github.com/narumiruna/camera-gps-link/issues). The documents and issue list are public; posting an issue requires a GitHub account. **Privacy Policy** is available in the same Help section. Opening either link does not apply draft settings.
 
 Prefer **Diagnostics → Copy Diagnostic Summary**. Its preview includes app/iOS versions, distribution mode, recognized camera identity, connection state, and last-update age, but no coordinates, device identifiers, camera nicknames, raw BLE payloads, or logs. Unknown identity fields are intentionally omitted as **Unknown**. Copying does not upload the report; paste it into a support request only when you choose. The summary's local-only clipboard entry expires after five minutes.
 

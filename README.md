@@ -104,13 +104,14 @@ justfile                  Local iOS commands
 
 ## Privacy and support
 
+**Link Settings → Help** opens these public documents on GitHub without applying draft settings:
+
 - [Privacy Policy](docs/PRIVACY.md)
 - [Support](docs/SUPPORT.md)
 
 ## Limitations
 
 - The A7C II iOS write and fresh-photo GPS EXIF regression remains required before the exact identity can be promoted to verified.
-- Public Privacy Policy/Support hosting and in-app links remain pending. The repository document and issue links require repository access during private development.
 - Camera firmware other than a physically qualified version must fail closed in the public Release build.
 - Public Release background operation is disabled until physical qualification passes; development and qualification background execution remains opportunistic and can be prevented by force-quitting the app.
 - Real BLE behavior, camera writes, background restoration, and battery use require physical-device testing.

@@ -54,6 +54,8 @@ In foreground-only mode, the home screen always explains: **Keep this app open. 
 
 Open **Link Settings** from the home screen. Changes are staged until **Apply**; **Cancel**, keyboard cancellation, or interactive sheet dismissal leaves persisted settings and running services unchanged.
 
+The **Help** section links to the public [Privacy Policy](https://github.com/narumiruna/camera-gps-link/blob/main/docs/PRIVACY.md) and [Support](https://github.com/narumiruna/camera-gps-link/blob/main/docs/SUPPORT.md) documents on GitHub. Following a link does not apply draft settings or request permissions. Switching to GitHub or a browser still follows the foreground-only session limitation above.
+
 ### Connection Availability
 
 - **While App Is Open** — runs only while Camera GPS Link is open.

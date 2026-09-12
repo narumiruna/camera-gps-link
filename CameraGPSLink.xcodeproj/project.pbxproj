@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		FA1000000000000000000001 /* SupportLinksUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA2000000000000000000001 /* SupportLinksUITests.swift */; };
 		F91000000000000000000003 /* DiagnosticsReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F92000000000000000000003 /* DiagnosticsReport.swift */; };
 		F91000000000000000000004 /* DiagnosticSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F92000000000000000000004 /* DiagnosticSummaryView.swift */; };
 		F91000000000000000000005 /* DiagnosticsReportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F92000000000000000000005 /* DiagnosticsReportTests.swift */; };
@@ -76,6 +77,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		FA2000000000000000000001 /* SupportLinksUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportLinksUITests.swift; sourceTree = "<group>"; };
 		F92000000000000000000003 /* DiagnosticsReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsReport.swift; sourceTree = "<group>"; };
 		F92000000000000000000004 /* DiagnosticSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticSummaryView.swift; sourceTree = "<group>"; };
 		F92000000000000000000005 /* DiagnosticsReportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsReportTests.swift; sourceTree = "<group>"; };
@@ -164,6 +166,7 @@
 			children = (
 				BC28FAA3D7B8CD04BA563E2A /* CameraGPSLinkUITests.swift */,
 				F92000000000000000000006 /* DiagnosticsSummaryUITests.swift */,
+				FA2000000000000000000001 /* SupportLinksUITests.swift */,
 				F60000000000000000000007 /* ConnectionHealthUITests.swift */,
 			);
 			path = CameraGPSLinkUITests;
@@ -399,6 +402,7 @@
 			files = (
 				6708E57438C9C737FCEC62A0 /* CameraGPSLinkUITests.swift in Sources */,
 				F91000000000000000000006 /* DiagnosticsSummaryUITests.swift in Sources */,
+				FA1000000000000000000001 /* SupportLinksUITests.swift in Sources */,
 				F50000000000000000000007 /* ConnectionHealthUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

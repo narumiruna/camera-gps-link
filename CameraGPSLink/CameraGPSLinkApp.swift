@@ -13,6 +13,7 @@ struct CameraGPSLinkApp: App {
         WindowGroup {
             ContentView(appModel: appModel)
                 #if DEBUG
+                    .modifier(UITestURLHandling())
                     .modifier(UITestAppearance())
                 #endif
                 .onAppear {

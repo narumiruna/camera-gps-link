@@ -51,6 +51,8 @@ A connected camera may cache location information or add it to newly captured ph
 Camera GPS Link does not share data with advertising networks, analytics providers, or data brokers.
 Information stored by or written to a connected camera is governed by the camera owner's practices and the camera manufacturer's policies.
 
+The Privacy Policy and Support links open public GitHub pages only when selected. Their URLs contain no coordinates, device identifiers, or diagnostic content. GitHub's privacy policy applies when you browse those pages or choose to submit an issue.
+
 ## Changes to This Policy
 
 Updates to this policy will be published on this page with a revised effective date.

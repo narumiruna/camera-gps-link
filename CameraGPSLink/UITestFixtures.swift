@@ -3,6 +3,36 @@
     import Foundation
     import SwiftUI
 
+    /// Intercept external links in UI fixtures so tests never launch a browser.
+    struct UITestURLHandling: ViewModifier {
+        @State private var openedURL: URL?
+
+        func body(content: Content) -> some View {
+            if ProcessInfo.processInfo.environment["SONYGEOTAG_UI_SCENARIO"] != nil {
+                content
+                    .environment(
+                        \.openURL,
+                        OpenURLAction { url in
+                            openedURL = url
+                            return ProcessInfo.processInfo.environment["SONYGEOTAG_UI_DISCARD_URLS"] == "1"
+                                ? .discarded : .handled
+                        }
+                    )
+                    .overlay(alignment: .bottom) {
+                        if let openedURL {
+                            // Read the recorded destination after dismissing the settings sheet.
+                            Text(openedURL.absoluteString)
+                                .font(.caption)
+                                .lineLimit(1)
+                                .accessibilityIdentifier("ui-test-opened-url")
+                        }
+                    }
+            } else {
+                content
+            }
+        }
+    }
+
     /// Apply test appearance explicitly; iOS can ignore the legacy launch-default overrides.
     struct UITestAppearance: ViewModifier {
         @Environment(\.dynamicTypeSize) private var dynamicTypeSize
