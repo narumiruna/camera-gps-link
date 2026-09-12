@@ -1,5 +1,7 @@
 # Connection health alerts plan
 
+Update 2026-09-12: public Release now offers optional Background by explicit product decision before physical background qualification. Foreground-only alert behavior remains applicable whenever **While App Is Open** is selected.
+
 ## Goal
 
 Add opt-in, local-only shooting alerts and clearer location freshness feedback without changing Sony protocol behavior or claiming that iOS can guarantee background execution.
@@ -11,7 +13,7 @@ Success means an enabled user is warned when a previously ready geotagging sessi
 - `GeotaggingViewState` already changes a linked session from **Ready to Geotag** to **Location Update Delayed** when `lastSentAt` is more than five minutes old.
 - `CameraBLEManager` rejects iPhone fixes older than 120 seconds or more than 10 seconds in the future, but the home screen currently reduces an unusable fix to a generic non-ready location row.
 - `CameraGPSLinkAppModel` refreshes time-derived state every 30 seconds and already centralizes service, settings, and lifecycle transitions, making it the appropriate integration boundary for health evaluation.
-- Public Release remains foreground-only until separate physical background qualification passes. Alerts must therefore cover the expected loss of coverage when an active foreground-only session enters the background, not imply that notifications keep BLE or Location running.
+- Public Release supports both connection modes. Alerts must cover expected loss of coverage when a **While App Is Open** session enters the background and must not imply that notifications keep BLE or Location running.
 - The project has no `UserNotifications` integration. Local notifications require user authorization but no push entitlement or remote service.
 - `CameraGPSLinkUnitTests/CameraGPSLinkUnitTests.swift` is currently 998 lines. New health tests must go in a separate test file rather than pushing that source over the 1,000-line limit.
 - Planning baseline on 2026-09-04: `just source-line-check` and `just ios-typecheck` pass on a clean working tree.
@@ -155,7 +157,7 @@ flowchart LR
 - [x] A successful `DD11`, disabled preference, ended intent, or recovered session replaces/cancels obsolete pending requests; verified by request-identifier and relaunch reconciliation tests.
 - [x] The home screen distinguishes camera-update freshness from missing, invalid, future, stale, low-accuracy, and healthy iPhone fixes without exposing coordinates; verified by view-state tests and accessibility UI fixtures.
 - [x] Notification and diagnostic text contains no coordinate, peripheral ID, raw model, firmware, or BLE payload; verified by payload assertions and diagnostic export redaction tests.
-- [x] Public Release remains foreground-only, no remote-notification capability or server is introduced, and Debug/Qualification/public Release all compile; verified by project diff inspection and unsigned build recipes.
+- [x] Public Release preserves foreground-only suspension when **While App Is Open** is selected, introduces no remote-notification capability or server, and Debug/Qualification/public Release all compile; verified by project diff inspection and unsigned build recipes.
 - [x] `README.md`, iOS guide, Support, and Privacy documentation accurately describe opt-in alerts, local processing, permission recovery, and iOS delivery limits; verified by copy review against the UI.
 - [x] Every Swift source remains at or below 1,000 lines, `git diff --check` passes, and `just check` passes with evidence recorded in this plan.
 - [ ] Required physical iPhone and explicitly authorized A7C II alert scenarios pass; otherwise the item remains unchecked and the objective is not reported as `DONE`.

@@ -34,7 +34,7 @@ First use: tap **Add Camera** → **Search for Cameras**, select your camera, an
 7. Tap **Stop Geotagging** when the shooting session ends so the app can clean up the camera controls it acquired.
 
 **Ready to Geotag** appears only after the camera receives the first successful location packet in the current session and the phone has a writable fix. **Using Last Sent Location** distinguishes a recent camera update from a stale or unavailable phone fix; it does not guarantee GPS in any particular photo.
-The public Release build remains foreground-only until background qualification passes. If Health Alerts are enabled, leaving the app stops that foreground-only session and posts a local reminder. Development and qualification background updates remain subject to iOS permissions and scheduling and cannot guarantee a fresh fix immediately before every photo. Notifications report loss of coverage; they do not keep Bluetooth or Location running.
+Public Release offers optional **Continue in Background** for its exact supported A7C II identity by explicit product decision. It requires Always Location permission, remains subject to iOS scheduling, and is not yet physically qualified; it cannot guarantee a fresh fix immediately before every photo. In **While App Is Open** mode, leaving the app stops the session and an enabled Health Alert can post a local reminder. Notifications report loss of coverage; they do not keep Bluetooth or Location running.
 
 See the [`iOS app guide`](docs/ios-app.md) for the complete workflow, settings, permission states, diagnostics behavior, and platform limitations.
 
@@ -111,9 +111,9 @@ justfile                  Local iOS commands
 
 ## Limitations
 
-- The A7C II iOS write and fresh-photo GPS EXIF regression remains required before the exact identity can be promoted to verified.
+- The exact A7C II 2.01 identity passed Release-equivalent iOS foreground qualification; signed public Release validation remains required.
 - Camera firmware other than a physically qualified version must fail closed in the public Release build.
-- Public Release background operation is disabled until physical qualification passes; development and qualification background execution remains opportunistic and can be prevented by force-quitting the app.
+- Public Release background configuration is available by explicit product decision but remains physically unverified. Background execution is opportunistic and can be prevented by force-quitting the app.
 - Real BLE behavior, camera writes, background restoration, and battery use require physical-device testing.
 - Camera GPS Link updates the camera's cached location for new photos and does not modify existing images.
 - Health Alerts are opt-in local notifications. iOS can delay or suppress their delivery, so they do not guarantee geotagging coverage.

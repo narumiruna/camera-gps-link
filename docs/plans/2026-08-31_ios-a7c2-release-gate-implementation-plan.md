@@ -1,6 +1,6 @@
 # A7C II-only iOS Release gate implementation plan
 
-- Status: Implemented; physical qualification pending.
+- Status: Implemented; foreground qualification passed. The original Background restriction was superseded on 2026-09-12 as recorded below.
 - Date: 2026-08-31.
 - Parent decision: [`A7C II-only iOS App Store release plan`](2026-08-31_ios-a7c2-only-app-store-release-plan.md).
 - Scope: Enforce the public Release compatibility boundary before any Sony notification subscription or application-level GATT write.
@@ -9,7 +9,7 @@
 
 Keep generic capability-driven Sony protocol code available for development while making public Release builds fail closed unless an exact physically verified compatibility entry matches.
 Provide a narrowly scoped qualification mode for A7C II firmware `2.01` without treating the candidate as publicly verified.
-Until background behavior passes physical qualification, public Release builds must force foreground-only operation.
+Update 2026-09-12: the user explicitly directed public Release to expose optional Background before physical background qualification. The foreground default, Always Location requirement, opportunistic-iOS warning, exact allowlist, and unverified status remain.
 
 ## Build modes
 
@@ -17,7 +17,7 @@ Until background behavior passes physical qualification, public Release builds m
 | --- | --- | --- | --- |
 | Development (`DEBUG`) | The exact qualification candidate may proceed from recorded development evidence; other generic executable profiles remain available for fixtures and explicit session approval. | Allowed for unmatched executable profiles | Available |
 | Qualification (`QUALIFICATION`) | Only the exact A7C II `2.01` candidate identity, descriptor fingerprint, modern profile, protocol `101`, and 95-byte packet may proceed. | Not allowed | Available for physical qualification |
-| Public Release | Only exact entries in the verified public registry may proceed. The registry remains empty until physical iOS qualification passes. | Not allowed | Hidden and forced off until qualification passes |
+| Public Release | Only exact entries in the verified public registry may proceed. The registry contains only qualified A7C II 2.01. | Not allowed | Available by explicit product decision; physically unverified |
 
 ## Implementation
 
@@ -79,14 +79,14 @@ Add or update tests proving:
 
 - Exact A7C II candidate matching succeeds only in qualification mode.
 - Model, firmware, protocol, profile, descriptor, and packet-size mismatches fail closed.
-- Public Release rejects the candidate while the verified registry is empty.
+- Public Release accepts the promoted exact candidate and rejects every mismatched identity dimension while the registry remains fail-closed when empty.
 - Development retains explicit experimental approval for unmatched executable profiles and skips it only for an exact qualification-candidate match.
 - Qualification and public Release never expose experimental override.
 - DD21 preflight occurs before notification and writes.
 - Rejected location and pairing requests enqueue no DD01, DD30, DD31, DD11, or EE01 operation.
 - Inactive scenes preserve foreground-only sessions; actual background entry stops them.
 - Exact-target scans skip rejected peripheral candidates and preserve the bounded foreground attempt.
-- Public Release hides and force-disables background operation, including stale persisted settings.
+- Public Release exposes Background only when its verified registry is nonempty and preserves the existing Always Location and lifecycle safeguards.
 - Debug, Qualification, and Release configurations compile.
 - `just check` passes.
 

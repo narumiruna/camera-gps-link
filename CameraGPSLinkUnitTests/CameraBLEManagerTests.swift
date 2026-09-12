@@ -271,7 +271,7 @@ final class CameraBLEManagerPlanIntegrationTests: XCTestCase {
         XCTAssertFalse(manager.hasValidatedRememberedProtocolContext(peripheralID: UUID().uuidString))
     }
 
-    func testForegroundOnlyManagerStopsAndBlocksDD11InBackground() {
+    func testPublicBackgroundManagerKeepsIntentAndAllowsDD11InBackground() {
         let manager = CameraBLEManager(
             diagnosticsStore: DiagnosticsLogStore(),
             timeoutPolicy: ForegroundConnectionTimeoutPolicy(),
@@ -286,9 +286,9 @@ final class CameraBLEManagerPlanIntegrationTests: XCTestCase {
 
         manager.handleScenePhase(isForeground: false)
 
-        XCTAssertEqual(manager.state, .stopped)
-        XCTAssertFalse(manager.permitsLocationWrites)
-        XCTAssertFalse(manager.userLinkIntentActive)
+        XCTAssertEqual(manager.state, .linked)
+        XCTAssertTrue(manager.permitsLocationWrites)
+        XCTAssertTrue(manager.userLinkIntentActive)
         XCTAssertNil(manager.sendTimer)
 
         manager.state = .linked
@@ -302,7 +302,7 @@ final class CameraBLEManagerPlanIntegrationTests: XCTestCase {
             )
         }
         manager.sendLocationIfDue(force: true)
-        XCTAssertTrue(manager.sanitizedOperationOrder.isEmpty)
+        XCTAssertTrue(manager.sanitizedOperationOrder.contains("DD11 location"))
     }
 
     func testCandidateRescanPreservesAttemptAndRejectedPeripherals() {

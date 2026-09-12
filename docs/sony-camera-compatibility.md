@@ -12,7 +12,7 @@ See [`plans/2026-08-31_ios-a7c2-only-app-store-release-plan.md`](plans/2026-08-3
 
 | Model | Firmware | Advertisement version | Profile | DD21 / packet | Python foreground | iOS foreground | Background | Evidence |
 | --- | --- | ---: | --- | --- | --- | --- | --- | --- |
-| A7C II (`ILCE-7CM2`) | `2.01` | `101` (`0x65`) | modern | `06 10 00 9c 02 00 00` / 95 | verified HEIF EXIF | Debug and Qualification HEIF EXIF verified; signed public Release pending | unverified | [`ilce-7cm2-2.01.md`](compatibility/ilce-7cm2-2.01.md), [`a7c2-ble-map.md`](a7c2-ble-map.md) |
+| A7C II (`ILCE-7CM2`) | `2.01` | `101` (`0x65`) | modern | `06 10 00 9c 02 00 00` / 95 | verified HEIF EXIF | Debug and Qualification HEIF EXIF verified; signed public Release pending | available by product decision; unverified | [`ilce-7cm2-2.01.md`](compatibility/ilce-7cm2-2.01.md), [`a7c2-ble-map.md`](a7c2-ble-map.md) |
 | A7 III (`ILCE-7M3`) | unknown | unknown | unresolved; legacy candidate only when `<65` and controls absent | unknown | unverified | unverified | unverified | none |
 | A7 IV (`ILCE-7M4`) | unknown | unknown | unresolved; modern candidate | unknown | unverified | unverified | unverified | none |
 | A6700 (`ILCE-6700`) | unknown | unknown | unresolved; modern candidate | unknown | unverified | unverified | unverified | none |

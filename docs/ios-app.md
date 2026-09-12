@@ -59,9 +59,9 @@ The **Help** section links to the public [Privacy Policy](https://github.com/nar
 ### Connection Availability
 
 - **While App Is Open** — runs only while Camera GPS Link is open.
-- **Continue in Background** — available only in development and qualification builds while physical background qualification remains pending. It keeps location and remembered-camera reconnect behavior active when iOS permits it and requires Always Location permission.
+- **Continue in Background** — available in development, qualification, and public Release builds. It keeps location and remembered-camera reconnect behavior active when iOS permits it and requires Always Location permission.
 
-The public Release build hides **Continue in Background**, migrates a stale enabled preference to foreground-only, and enforces the same restriction in the location and BLE service layers. Temporary inactive states such as system interruptions do not stop the link; actual background entry does.
+Public Release exposes Background by explicit product decision for its exact supported A7C II identity, although physical background qualification remains pending. **While App Is Open** remains the default. Temporary inactive states such as system interruptions do not stop the link; actual background entry stops only a foreground-only session.
 
 ### Location Updates
 
@@ -166,9 +166,9 @@ A physical iPhone is still required to validate real CoreBluetooth behavior, bac
 
 ## Known limitations
 
-- The exact A7C II candidate has current Python and iOS development foreground EXIF evidence, but public runtime confidence remains experimental until a Release-equivalent iOS qualification run passes.
+- The exact A7C II 2.01 identity has Python, iOS development, and Release-equivalent iOS qualification foreground EXIF evidence; signed public Release validation remains pending.
 - A7 III, A7 IV, A6700, A7R V, A7S III, A1, ZV-E1, and ZV-E10 II remain unverified until their exact rows have independent evidence.
-- Public Release background operation is disabled until physical qualification passes. Development and qualification background execution remains opportunistic and cannot guarantee a fresh location immediately before every shutter release.
+- Public Release offers Background by explicit product decision before physical background qualification. Background execution remains opportunistic and cannot guarantee a fresh location immediately before every shutter release.
 - The app updates the camera’s cached location for new photos; it does not modify existing images.
 - Real BLE, notification delivery, and background wake behavior cannot be fully simulated by XCUITest.
 - Local Health Alerts can be delayed or suppressed by iOS and never guarantee geotagging coverage.

@@ -5,7 +5,7 @@
 - Advertisement protocol version: `101` (`0x65`)
 - Resolved profile: `modern`
 - Confidence before test: `experimental`
-- Background status: `unverified`
+- Background status: `available in public Release by explicit product decision; physically unverified`
 
 ## Sanitized snapshot
 
@@ -195,4 +195,4 @@ The development policy may now reuse this exact qualification candidate without 
 }
 ```
 
-The qualification source HEIF, exact coordinates, and coordinate-bearing screenshots remain private and outside the repository. This result qualifies only the exact identity and foreground workflow above; it does not qualify background operation or another model, firmware, protocol, descriptor shape, or packet size.
+The qualification source HEIF, exact coordinates, and coordinate-bearing screenshots remain private and outside the repository. This result qualifies only the exact identity and foreground workflow above; it does not qualify another model, firmware, protocol, descriptor shape, or packet size. Public Release exposes Background by explicit product decision, but this evidence does not qualify its physical reliability.

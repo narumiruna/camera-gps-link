@@ -4,7 +4,7 @@
 
 Address the five review recommendations: stop unnecessary location updates after terminal connection failure, automate verification, clarify shooting readiness, provide in-app support and safe diagnostic summaries, and qualify the exact A7C II identity for public Release.
 
-Status: The software portion is delivered in [Draft PR #17](https://github.com/narumiruna/camera-gps-link/pull/17) on `narumi/feat/ios-reliability-release-readiness`, based on `origin/main` at `b51685fe9b51a89daa7a03d291204ec49de2b18d`. Signed implementation commit `42ca26b9d93cc89744aa367e54871d314653bb87` passes the full local gate (154 unit tests and 37 UI tests) and all hosted CI jobs. The physical Release-equivalent QUALIFICATION run passed fresh-HEIF EXIF and complete Stop cleanup. The exact identity promotion and focused checks pass locally; signed public Release validation and renewed final gates remain. This plan is not complete.
+Status: The software portion is delivered in [Draft PR #17](https://github.com/narumiruna/camera-gps-link/pull/17) on `narumi/feat/ios-reliability-release-readiness`, based on `origin/main` at `b51685fe9b51a89daa7a03d291204ec49de2b18d`. Signed implementation commit `42ca26b9d93cc89744aa367e54871d314653bb87` passes the full local gate (154 unit tests and 37 UI tests) and all hosted CI jobs. The physical Release-equivalent QUALIFICATION run passed fresh-HEIF EXIF and complete Stop cleanup. The exact identity promotion and focused checks pass locally. The user subsequently directed public Release to expose Background without waiting for physical background qualification; implementation, focused tests, and truthful unverified-status documentation pass locally. Signed public Release validation and renewed final gates remain. This plan is not complete.
 
 ## Context
 
@@ -28,7 +28,7 @@ These findings describe the pre-implementation baseline at `b51685f`.
 
 ## Non-Goals
 
-- Additional camera models or firmware, public background enablement, protocol changes, location-history storage, analytics, and automatic diagnostic uploads.
+- Additional camera models or firmware, protocol changes, location-history storage, analytics, and automatic diagnostic uploads.
 - A general BLE or app-model rewrite, unrelated plan maintenance, and a full App Store submission or metadata project.
 
 ## Assumptions
@@ -89,14 +89,15 @@ Section 4 evidence: `just check` passed 152 unit tests and all 34 UI tests on 20
 - [x] Run the authorized foreground session and capture a new original HEIF after acknowledged DD11 and before Stop. SonyGeoTag verifier source/tests at `81acebaa3177ad8ad589c64f665d8a3e9cab420e` passed all 18 focused tests, then verified capture at `17:32:50+08:00`, three seconds after the `17:32:47` not-before bound, with both coordinate deltas far inside `0.0001°`. Sanitized results and the private artifact hash are in `docs/compatibility/ilce-7cm2-2.01.md`; the photo and precise coordinates remain outside the repository.
 - [x] Verify Stop completes `DD31 disable → DD30 unlock → DD01 notify stop`. Screenshots confirm `stopped`, `Updating: No`, no pending reconnect, and `Cleanup complete`; the full sanitized operation order is recorded in the evidence document.
 - [x] Promote only the proven entry in `SonyReleasePolicy.swift` and align `docs/sony-camera-compatibility.md` plus the evidence document. Updated public-policy tests accept only the exact identity and reject different models, firmware, protocols, profiles, fingerprints, pairing endpoint shapes, and DD21 packet sizes before writes. `just ios-unit-test` passed all 154 tests; both unsigned Release and QUALIFICATION device builds passed (`promotion-unit-2.log`, `promotion-*-nosign.log`).
-- [ ] Validate a signed public Release build after promotion on the same authorized hardware, renewing write authorization when needed; record a successful first update, a fresh-photo EXIF check, clean Stop, and foreground-only suspension in the evidence document. Keep public background disabled and record the tested build/commit without submitting to the App Store.
+- [x] Expose Background configuration in public Release as explicitly directed by the user on 2026-09-12, without representing it as physically qualified. The foreground default, Always Location requirement, opportunistic-iOS warning, exact camera allowlist, and fail-closed behavior when the verified registry is empty remain. All 154 unit tests, the focused public Settings UI test, and unsigned Release/QUALIFICATION builds pass (`public-background-unit-2.log`, `public-background-ui-2.log`, `public-background-*-nosign.log`). User and historical decision documents record the override and unverified status.
+- [ ] Validate a signed public Release build after the final policy changes on the same authorized hardware, renewing write authorization when needed; record a successful foreground first update, fresh-photo EXIF check, clean Stop, tested build/commit, and the separately unverified Background status without submitting to the App Store.
 
 ## Rollback / Recovery
 
 - If lifecycle changes suppress legitimate retry or alter cleanup/health alerts, revert the focused change and leave its regression tests and completion items unresolved; do not bypass cleanup or convert foreground failures into unlimited reconnects.
 - If CI infrastructure is unavailable, retain `just check` as the local gate and leave hosted-run evidence open; do not report local success as CI success.
 - If a report leaks a sensitive fixture, disable the new summary action until its allowlist tests pass; do not relax the privacy requirement to preserve arbitrary log output.
-- If qualification or public Release validation fails, remove any newly promoted public entry and restore the documented unverified status. Do not add an override, enable background operation, or claim release readiness. Camera recovery after incomplete cleanup follows the existing documented manual procedure before another separately authorized write attempt.
+- If qualification or public Release foreground validation fails, remove any newly promoted public entry and restore the documented unsupported status. Do not claim physical Background reliability without its own evidence; user-directed availability is not qualification. Camera recovery after incomplete cleanup follows the existing documented manual procedure before another separately authorized write attempt.
 
 ## Completion Checklist
 
@@ -104,5 +105,5 @@ Section 4 evidence: `just check` passed 152 unit tests and all 34 UI tests on 20
 - [ ] `just check` passes on the final promotion/evidence commit. Previous committed evidence at `42ca26b`: smoke, typecheck, project/source lint, four builds, 154 unit tests, and 37 UI tests using Xcode 26.6 (`17F113`), Swift 6.3.3, and iOS Simulator 26.5 (`23F77`); `/tmp/camera-gps-link-readiness/review-fix-gate.log`, exit 0. Promotion-focused evidence currently passes 154 unit tests and both policy builds; the full renewed gate remains.
 - [ ] Every required workflow job passes on the final promotion/evidence commit. Previous evidence at `42ca26b`: [run 34684267729](https://github.com/narumiruna/camera-gps-link/actions/runs/34684267729), all three jobs passed. CI uses no signing secrets or physical-camera access; renewed hosted evidence remains.
 - [x] Home-screen limitations, cached-location wording, support links, and safe-summary copy behavior pass their unit/UI checks; related user/privacy documents match. All 37 UI tests pass, and obsolete private-hosting notices have been removed. The extra whole-Settings contrast probe remains explicitly unverified as recorded in section 5.
-- [ ] Qualification and promoted public Release evidence proves fresh-photo GPS EXIF and clean Stop for the exact A7C II identity; unsupported identities still fail closed and public background remains disabled.
+- [ ] Qualification and promoted public Release evidence proves fresh-photo GPS EXIF and clean Stop for the exact A7C II identity; unsupported identities still fail closed. Public Background is available by explicit product direction and clearly documented as physically unverified.
 - [ ] All execution tasks have passing evidence, prerequisites are resolved, and the handoff identifies the tested build plus remaining out-of-scope App Store/background work. Only then delete this plan and report its path; hardware or CI blockers do not count as completion.

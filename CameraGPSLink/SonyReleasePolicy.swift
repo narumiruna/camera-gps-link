@@ -97,7 +97,7 @@ struct SonyReleasePolicy: Equatable {
     }
 
     var allowsBackground: Bool {
-        mode != .publicRelease
+        mode != .publicRelease || !verifiedEntries.isEmpty
     }
 
     func evaluate(

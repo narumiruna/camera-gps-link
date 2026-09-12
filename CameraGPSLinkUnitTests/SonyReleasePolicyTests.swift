@@ -127,7 +127,8 @@ final class SonyReleasePolicyTests: XCTestCase {
         XCTAssertEqual(authorization.expectedPacketSize, 95)
         XCTAssertEqual(policy.verifiedEntries, [SonyReleasePolicy.a7c2QualificationEntry])
         XCTAssertFalse(policy.allowsExperimentalApproval)
-        XCTAssertFalse(policy.allowsBackground)
+        XCTAssertTrue(policy.allowsBackground)
+        XCTAssertFalse(SonyReleasePolicy(mode: .publicRelease, verifiedEntries: []).allowsBackground)
 
         let unsupportedProfile = SonyLocationProfile(
             kind: .unsupported,
@@ -417,20 +418,24 @@ final class SonyReleasePolicyTests: XCTestCase {
     }
 
     @MainActor
-    func testPublicReleaseForcesBackgroundOffAtStoreAndBLELayers() throws {
+    func testPublicReleaseAllowsBackgroundAtStoreAndBLELayers() throws {
         let suite = "SonyReleasePolicyTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(true, forKey: LinkSettingsKeys.backgroundLinkEnabled)
-        let store = UserDefaultsLinkSettingsStore(defaults: defaults, allowsBackground: false)
+        let policy = SonyReleasePolicy(mode: .publicRelease)
+        let store = UserDefaultsLinkSettingsStore(defaults: defaults, allowsBackground: policy.allowsBackground)
 
-        XCTAssertEqual(try store.load().connectionAvailability, .whileAppIsOpen)
-        XCTAssertFalse(defaults.bool(forKey: LinkSettingsKeys.backgroundLinkEnabled))
-        XCTAssertEqual(ConnectionAvailability.availableOptions(allowsBackground: false), [.whileAppIsOpen])
+        XCTAssertEqual(try store.load().connectionAvailability, .continueInBackground)
+        XCTAssertTrue(defaults.bool(forKey: LinkSettingsKeys.backgroundLinkEnabled))
+        XCTAssertEqual(
+            ConnectionAvailability.availableOptions(allowsBackground: policy.allowsBackground),
+            [.whileAppIsOpen, .continueInBackground]
+        )
 
-        let manager = makeManager(policy: SonyReleasePolicy(mode: .publicRelease))
+        let manager = makeManager(policy: policy)
         manager.configure(backgroundLinkEnabled: true, lowPowerModeEnabled: true)
-        XCTAssertFalse(manager.backgroundLinkEnabled)
+        XCTAssertTrue(manager.backgroundLinkEnabled)
     }
 
     private func assertUnsupported(

@@ -2,7 +2,7 @@
 
 Camera GPS Link sends an iPhone's current location to a compatible camera over Bluetooth.
 The public iOS release target is exclusively the Sony Alpha 7C II (`ILCE-7CM2`).
-Initial qualification is limited to firmware `2.01`, and the iOS support claim remains pre-release until its physical write and fresh-photo GPS EXIF verification pass.
+Initial qualification is limited to firmware `2.01`. Release-equivalent foreground write and fresh-photo GPS EXIF verification pass; signed public Release validation remains pending.
 Other camera models are not supported by the public iOS release.
 
 ## Before Requesting Support
@@ -17,7 +17,7 @@ Other camera models are not supported by the public iOS release.
 - Treat **iPhone Location Is Stale**, **Low Location Accuracy**, and **Location Update Delayed** as separate conditions; the Readiness rows identify whether the phone fix or camera cache needs attention.
 - After a terminal connection failure, location updates stop. Fix the displayed problem and tap **Retry**; a Background preference does not automatically restart a failed foreground attempt.
 
-Background operation is disabled in the first public Release until physical qualification passes. An enabled Health Alert can report that a foreground-only session stopped after the app entered the background, but the notification does not keep the session running. Development and qualification background behavior depends on iOS permissions and system scheduling and cannot guarantee an update immediately before every photo.
+The first public Release offers optional Background by explicit product decision before physical background qualification. It requires Always Location permission, depends on iOS scheduling, and cannot guarantee an update immediately before every photo. In **While App Is Open** mode, an enabled Health Alert can report that the session stopped after background entry, but the notification does not keep the session running.
 
 ## Contact
 
