@@ -62,6 +62,15 @@ struct GeotaggingHomeView<Diagnostics: View>: View {
             VStack(spacing: 10) {
                 actionButtons
             }
+
+            if let explanation = state.foregroundOnlyMessage {
+                Label(explanation, systemImage: "info.circle")
+                    .font(.footnote)
+                    .foregroundStyle(LinkAppearance.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("foreground-only-explanation")
+            }
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -251,7 +260,7 @@ struct GeotaggingHomeView<Diagnostics: View>: View {
         switch state.phase {
         case .ready:
             "checkmark.circle.fill"
-        case .needsAttention, .approvalRequired, .unsupported:
+        case .needsAttention, .approvalRequired, .unsupported, .usingCachedLocation:
             "exclamationmark.triangle.fill"
         case .searching, .connecting, .preparing, .sendingFirstLocation, .requestingPermission, .stopping:
             "arrow.triangle.2.circlepath"
@@ -266,7 +275,7 @@ struct GeotaggingHomeView<Diagnostics: View>: View {
         switch state.phase {
         case .ready:
             LinkAppearance.positive
-        case .needsAttention, .approvalRequired, .unsupported:
+        case .needsAttention, .approvalRequired, .unsupported, .usingCachedLocation:
             LinkAppearance.warning
         default:
             LinkAppearance.accent

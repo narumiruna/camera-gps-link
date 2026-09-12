@@ -97,7 +97,7 @@ struct SonyReleasePolicy: Equatable {
     }
 
     var allowsBackground: Bool {
-        mode != .publicRelease
+        mode != .publicRelease || !verifiedEntries.isEmpty
     }
 
     func evaluate(
@@ -299,12 +299,12 @@ struct SonyReleasePolicy: Equatable {
                 )
             ]),
             packetSize: SonyProtocol.locationPacketSizeWithTimezone,
-            evidence: "A7C II 2.01 iOS qualification candidate"
+            evidence: "docs/compatibility/ilce-7cm2-2.01.md, iOS QUALIFICATION 2026-09-12"
         )
     }()
 
-    // Public entries stay empty until the physical iOS write, fresh-photo EXIF, and cleanup gates pass.
-    static let verifiedEntries: [SonyReleaseCompatibilityEntry] = []
+    // Keep this registry limited to exact identities with physical Release-equivalent evidence.
+    static let verifiedEntries = [a7c2QualificationEntry]
     static let qualificationEntries = [a7c2QualificationEntry]
 
     private func matchingEntry(

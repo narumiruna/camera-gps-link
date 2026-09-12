@@ -3,6 +3,36 @@
     import Foundation
     import SwiftUI
 
+    /// Intercept external links in UI fixtures so tests never launch a browser.
+    struct UITestURLHandling: ViewModifier {
+        @State private var openedURL: URL?
+
+        func body(content: Content) -> some View {
+            if ProcessInfo.processInfo.environment["SONYGEOTAG_UI_SCENARIO"] != nil {
+                content
+                    .environment(
+                        \.openURL,
+                        OpenURLAction { url in
+                            openedURL = url
+                            return ProcessInfo.processInfo.environment["SONYGEOTAG_UI_DISCARD_URLS"] == "1"
+                                ? .discarded : .handled
+                        }
+                    )
+                    .overlay(alignment: .bottom) {
+                        if let openedURL {
+                            // Read the recorded destination after dismissing the settings sheet.
+                            Text(openedURL.absoluteString)
+                                .font(.caption)
+                                .lineLimit(1)
+                                .accessibilityIdentifier("ui-test-opened-url")
+                        }
+                    }
+            } else {
+                content
+            }
+        }
+    }
+
     /// Apply test appearance explicitly; iOS can ignore the legacy launch-default overrides.
     struct UITestAppearance: ViewModifier {
         @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -154,7 +184,8 @@
                 camera.lastSentAt = now
                 camera.activeLinkIntent = true
                 location = fixtureLocation(now: now)
-            case "stale-location", "low-accuracy", "future-location", "invalid-location", "coexisting-notices":
+            case "stale-location", "low-accuracy", "future-location", "invalid-location", "missing-location",
+                "coexisting-notices":
                 settings.healthAlertsEnabled = true
                 camera.state = .linked
                 camera.packetsSent = 1
@@ -166,7 +197,7 @@
                     location = fixtureLocation(now: now, accuracy: 101)
                 } else if scenario == "future-location" {
                     location = fixtureLocation(now: now, age: -11)
-                } else {
+                } else if scenario != "missing-location" {
                     location = fixtureLocation(now: now, accuracy: -1)
                 }
                 if scenario == "coexisting-notices" {
@@ -438,7 +469,8 @@
             lastError: nil,
             pendingReconnectArmed: false,
             activeLinkIntent: false,
-            updateInterval: 120
+            updateInterval: 120,
+            diagnosticIdentity: SonyCameraIdentity(model: "ILCE-7CM2", firmware: "2.01", protocolVersion: 101)
         )
     }
 #endif

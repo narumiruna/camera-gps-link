@@ -35,27 +35,33 @@ The home screen is organized around shooting readiness rather than BLE protocol 
 5. Development builds may show **Experimental Camera Profile** only after read-only identity, descriptor, and strict DD21 preflight; Cancel performs no subscription or application write. The exact A7C II qualification candidate may proceed without this volatile approval after recorded development evidence, while qualification and public Release builds never offer the override.
 6. Wait for **Ready to Geotag** before taking photos that need location data.
 
-**Ready to Geotag** appears only after the camera has successfully received at least one location packet in the current session. The Readiness group separately reports the camera, iPhone location, and last successful camera update.
+**Ready to Geotag** appears only after the camera has successfully received at least one location packet in the current session, its last update is no more than five minutes old, and the phone has a writable fix. The Readiness group separately reports the camera, iPhone location, and last successful camera update. This status does not verify GPS EXIF in individual photos.
 
-During a foreground connection attempt, **Cancel** remains available. Camera search, connection, and setup use bounded waits; a timeout preserves the remembered camera and offers **Retry** instead of leaving the interface indefinitely busy.
+During a foreground connection attempt, **Cancel** remains available. Camera search, connection, and setup use bounded waits; a timeout preserves the remembered camera and offers **Retry** instead of leaving the interface indefinitely busy. Terminal failures and unsupported identities stop iPhone location updates without bypassing camera-control cleanup. Enabling Background does not turn a failed foreground attempt into automatic retry; start again explicitly. Eligible background reconnection retains location updates when permissions and iOS allow them.
 
 While ready:
 
 - **Send Current Location** requests an immediate refresh when the iPhone has a writable fix.
 - **Stop Geotagging** safely closes the location link. It is reversible and does not delete settings or camera identity.
 
-The Readiness rows distinguish the camera's last confirmed update from the current iPhone fix. A camera update becomes delayed after five minutes. An iPhone fix is shown as stale after 120 seconds, invalid when its accuracy or timestamp cannot be used, and low accuracy above 100 m. Low accuracy is advisory and does not block a valid camera write. A fresh camera cache can remain usable while the app waits for a better or newer iPhone fix.
+The Readiness rows distinguish the camera's last confirmed update from the current iPhone fix. A camera update becomes delayed after five minutes. An iPhone fix is shown as stale after 120 seconds, invalid when its accuracy or timestamp cannot be used, and low accuracy above 100 m. Low accuracy is advisory and does not block a valid camera write.
+
+**Using Last Sent Location** replaces the green Ready presentation when the camera update is still recent but the phone fix is stale, missing, invalid, or future-dated. It shows when the location was sent and keeps **Stop Geotagging** available, without offering a manual send of an unusable fix. After the camera update exceeds five minutes, **Location Update Delayed** takes precedence.
+
+In foreground-only mode, the home screen always explains: **Keep this app open. Locking the iPhone or switching apps stops location updates.** This explanation does not depend on enabling Health Alerts.
 
 ## Link Settings
 
 Open **Link Settings** from the home screen. Changes are staged until **Apply**; **Cancel**, keyboard cancellation, or interactive sheet dismissal leaves persisted settings and running services unchanged.
 
+The **Help** section links to the public [Privacy Policy](https://github.com/narumiruna/camera-gps-link/blob/main/docs/PRIVACY.md) and [Support](https://github.com/narumiruna/camera-gps-link/blob/main/docs/SUPPORT.md) documents on GitHub. Following a link does not apply draft settings or request permissions. Switching to GitHub or a browser still follows the foreground-only session limitation above.
+
 ### Connection Availability
 
 - **While App Is Open** — runs only while Camera GPS Link is open.
-- **Continue in Background** — available only in development and qualification builds while physical background qualification remains pending. It keeps location and remembered-camera reconnect behavior active when iOS permits it and requires Always Location permission.
+- **Continue in Background** — available in development, qualification, and public Release builds. It keeps location and remembered-camera reconnect behavior active when iOS permits it and requires Always Location permission.
 
-The public Release build hides **Continue in Background**, migrates a stale enabled preference to foreground-only, and enforces the same restriction in the location and BLE service layers. Temporary inactive states such as system interruptions do not stop the link; actual background entry does.
+Public Release exposes Background by explicit product decision for its exact supported A7C II identity, although physical background qualification remains pending. **While App Is Open** remains the default. Temporary inactive states such as system interruptions do not stop the link; actual background entry stops only a foreground-only session.
 
 ### Location Updates
 
@@ -95,14 +101,16 @@ Background reconnect is shown as **Waiting for Camera**, not as an endless foreg
 
 **Diagnostics** is one level below the home screen and preserves the technical information needed for troubleshooting:
 
-- sanitized detected model, firmware, protocol, modern/legacy profile, and confidence;
+- detected model, firmware, protocol, modern/legacy profile, and confidence;
 - packets sent, strict DD11/DD21 packet mode, operation order, cleanup status, update interval, and pending reconnect;
 - Health Alerts preference, notification permission, health classification, and managed alert deadline;
 - pairing state and last-send time, without exposing the private remembered peripheral identifier;
 - location permission, mode, coordinate, accuracy, and fix time;
 - a bounded 120-line debug log.
 
-Diagnostic logs can include recent coordinates. Review the warning and log contents before using **Copy Diagnostic Log** or sharing the result. Local health notification text never includes coordinates, peripheral identifiers, raw camera identity, firmware, or BLE payloads.
+**Copy Diagnostic Summary** works even when the log is empty. **Summary Preview** shows the exact allowlisted text: app version/build, iOS version, distribution mode, a recognized exact camera identity, connection state, and age of the last confirmed update. Unknown or unrecognized identity fields display **Unknown**. The summary excludes coordinates, camera nicknames, device identifiers, raw BLE payloads, free-form errors, and log messages. Copying does not request permissions, start geotagging, or upload data. Its clipboard entry is local to the iPhone and expires after five minutes.
+
+**Copy Diagnostic Log** remains separate. Diagnostic logs and on-screen location details can include recent coordinates; review the warning and log contents before copying or sharing them. The entire Diagnostics screen is not de-identified. Local health notification text never includes coordinates, peripheral identifiers, raw camera identity, firmware, or BLE payloads.
 
 ## Sony protocol behavior
 
@@ -158,9 +166,9 @@ A physical iPhone is still required to validate real CoreBluetooth behavior, bac
 
 ## Known limitations
 
-- The exact A7C II candidate has current Python and iOS development foreground EXIF evidence, but public runtime confidence remains experimental until a Release-equivalent iOS qualification run passes.
+- The exact A7C II 2.01 identity has Python, iOS development, and Release-equivalent iOS qualification foreground EXIF evidence; signed public Release validation remains pending.
 - A7 III, A7 IV, A6700, A7R V, A7S III, A1, ZV-E1, and ZV-E10 II remain unverified until their exact rows have independent evidence.
-- Public Release background operation is disabled until physical qualification passes. Development and qualification background execution remains opportunistic and cannot guarantee a fresh location immediately before every shutter release.
+- Public Release offers Background by explicit product decision before physical background qualification. Background execution remains opportunistic and cannot guarantee a fresh location immediately before every shutter release.
 - The app updates the camera’s cached location for new photos; it does not modify existing images.
 - Real BLE, notification delivery, and background wake behavior cannot be fully simulated by XCUITest.
 - Local Health Alerts can be delayed or suppressed by iOS and never guarantee geotagging coverage.

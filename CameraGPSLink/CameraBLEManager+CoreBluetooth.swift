@@ -37,20 +37,35 @@ extension CameraBLEManager: CBCentralManagerDelegate {
                 operationQueue.removeAll()
                 pendingOperation = nil
                 onQueueEmpty = nil
-                disarmPendingReconnect()
-                activeSessionRequested = false
-                manualStopRequested = true
-                setUserLinkIntent(active: false)
+                endLinkIntent()
                 cleanupDiagnostic =
                     "Incomplete cleanup: Bluetooth became unavailable while camera controls might be active"
                 lastError = cleanupDiagnostic
                 state = .failed
             } else {
+                let canWaitInBackground =
+                    backgroundLinkEnabled && userLinkIntentActive && !manualStopRequested
+                    && attemptOrigin != .foreground
+                    && [.poweredOff, .resetting, .unknown].contains(bluetoothState)
+                // No controls need compensation. Discard the invalid connection before retry;
+                // stale reads/timeouts must not block discovery or end the retained intent.
                 state = .bluetoothUnavailable
+                peripheral?.delegate = nil
+                peripheral = nil
+                prepareForNewSession(resetCounters: true)
+                pendingReconnectArmed = false
+                if canWaitInBackground {
+                    // Includes persisted intent before CoreBluetooth restoration finishes.
+                    activeSessionRequested = true
+                    attemptOrigin = .background
+                    resumeWhenBluetoothPowersOn = true
+                } else {
+                    endLinkIntent()
+                }
             }
             appendLog("Bluetooth state changed: \(bluetoothState.rawValue)")
         @unknown default:
-            state = .bluetoothUnavailable
+            handleBluetoothState(.unsupported)
         }
     }
 
@@ -163,9 +178,7 @@ extension CameraBLEManager: CBCentralManagerDelegate {
 
         if cleanupWasIncomplete {
             compensationInProgress = false
-            activeSessionRequested = false
-            manualStopRequested = true
-            setUserLinkIntent(active: false)
+            endLinkIntent()
             lastError = cleanupDiagnostic
             state = .failed
             return
@@ -190,14 +203,7 @@ extension CameraBLEManager: CBCentralManagerDelegate {
             return
         }
         guard backgroundLinkEnabled, !manualStopRequested else {
-            if hadPossiblyAppliedControls {
-                lastError = cleanupDiagnostic
-                state = .failed
-            } else if let error {
-                fail(error.localizedDescription)
-            } else {
-                state = .idle
-            }
+            fail(error?.localizedDescription ?? "Camera disconnected.")
             return
         }
 
@@ -458,10 +464,7 @@ extension CameraBLEManager {
 
     func rejectUnsupportedProfile(_ reason: String) {
         cancelConnectionStageTimeout()
-        activeSessionRequested = false
-        manualStopRequested = true
-        attemptOrigin = .none
-        setUserLinkIntent(active: false)
+        endLinkIntent()
         experimentalApprovalPending = false
         pairingConfirmationPending = false
         lastError = reason

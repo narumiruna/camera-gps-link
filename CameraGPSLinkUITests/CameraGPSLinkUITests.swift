@@ -160,11 +160,11 @@ final class CameraGPSLinkUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Continue with Experimental Profile"].exists)
     }
 
-    func testPublicReleaseHidesBackgroundOption() {
+    func testPublicReleaseShowsBackgroundOption() {
         launch("public-release-settings")
         openLinkSettings()
-        XCTAssertFalse(app.staticTexts["Continue in Background"].exists)
-        XCTAssertFalse(app.buttons["Continue in Background"].exists)
+        selectSetting("Continue in Background")
+        XCTAssertTrue(app.staticTexts["Background · Battery Saver"].waitForExistence(timeout: 2))
     }
 
     func testPermissionDeniedShowsActionableRecovery() {
@@ -220,6 +220,7 @@ final class CameraGPSLinkUITests: XCTestCase {
         app.buttons["diagnostics-link"].tap()
 
         XCTAssertTrue(app.navigationBars["Diagnostics"].waitForExistence(timeout: 2))
+        scrollUntilVisible(app.staticTexts["DD11 packet"])
         XCTAssertTrue(app.staticTexts["DD11 packet"].exists)
         XCTAssertTrue(app.staticTexts["Profile"].exists)
         XCTAssertTrue(app.staticTexts["Confidence"].exists)

@@ -109,6 +109,28 @@ struct LinkSettingsView: View {
                 }
                 .listRowBackground(LinkAppearance.accentSurface)
 
+                Section {
+                    Link(
+                        destination: URL(
+                            string: "https://github.com/narumiruna/camera-gps-link/blob/main/docs/PRIVACY.md")!
+                    ) {
+                        Label("Privacy Policy", systemImage: "hand.raised")
+                    }
+                    .accessibilityIdentifier("privacy-policy-link")
+                    Link(
+                        destination: URL(
+                            string: "https://github.com/narumiruna/camera-gps-link/blob/main/docs/SUPPORT.md")!
+                    ) {
+                        Label("Support", systemImage: "questionmark.circle")
+                    }
+                    .accessibilityIdentifier("support-link")
+                } header: {
+                    Label("Help", systemImage: "book")
+                } footer: {
+                    Text("Opens GitHub.")
+                }
+                .listRowBackground(LinkAppearance.surface)
+
                 if let applyError {
                     Section {
                         Label(applyError, systemImage: "exclamationmark.triangle.fill")

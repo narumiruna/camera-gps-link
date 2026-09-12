@@ -55,7 +55,7 @@ struct ContentView: View {
         #if canImport(UIKit)
             guard UIAccessibility.isVoiceOverRunning else { return }
             switch phase {
-            case .ready, .needsAttention, .stopped:
+            case .ready, .usingCachedLocation, .needsAttention, .stopped:
                 UIAccessibility.post(notification: .announcement, argument: appModel.viewState.title)
             default:
                 break

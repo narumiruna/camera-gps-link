@@ -263,16 +263,14 @@ extension CameraBLEManager {
 
     func fail(_ message: String) {
         cancelConnectionStageTimeout()
-        manualStopRequested = true
-        activeSessionRequested = false
+        endLinkIntent()
+        centralManager.stopScan()
         lastError = message
-        resumeWhenBluetoothPowersOn = false
         if connectionIntent == .pairing {
             pairingStatus = message
             pairingConfirmationPending = false
             experimentalApprovalPending = false
             clearPairingCandidates()
-            centralManager.stopScan()
         }
         state = .failed
         stopTimer()
@@ -295,9 +293,7 @@ extension CameraBLEManager {
                 cleanupDiagnostic = cleanupNeeded ? "Incomplete cleanup: camera is disconnected" : "Cleanup not needed"
             }
             if cleanupNeeded {
-                activeSessionRequested = false
-                manualStopRequested = true
-                setUserLinkIntent(active: false)
+                endLinkIntent()
                 lastError = cleanupDiagnostic
             }
             compensationInProgress = false

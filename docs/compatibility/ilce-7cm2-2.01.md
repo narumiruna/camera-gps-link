@@ -5,7 +5,7 @@
 - Advertisement protocol version: `101` (`0x65`)
 - Resolved profile: `modern`
 - Confidence before test: `experimental`
-- Background status: `unverified`
+- Background status: `available in public Release by explicit product decision; physically unverified`
 
 ## Sanitized snapshot
 
@@ -164,8 +164,44 @@ The user explicitly accepted camera-native HEIF evidence instead of JPEG. A zero
 The source HEIF remains outside the repository.
 The development policy may now reuse this exact qualification candidate without volatile approval, while other unverified development profiles remain approval-gated.
 
-## Qualification result
+## iOS Release-equivalent qualification result
 
-- Exact model/firmware/protocol/profile: `Python foreground verified; iOS development foreground verified; Release-equivalent qualification pending`
-- Deviations or cleanup diagnostics: `no protocol, EXIF, or cleanup deviation; the iOS run used DEBUG rather than QUALIFICATION`
-- Reviewer/date: `Python evidence recorded 2026-08-09; iOS development evidence recorded 2026-09-06`
+- Platform: `iPhone 16 Pro` (`iPhone17,1`), iOS `26.6.2` (`23G90`), Developer Mode enabled
+- App: signed Release-optimized `QUALIFICATION` build `0.1 (1)` from commit `42ca26b9d93cc89744aa367e54871d314653bb87`
+- Build evidence: Team `A4YQL6FFTK`, provisioned device confirmed, binary SHA-256 `6c8711763527ce34736ef2ea66af2c537a70210e7c5dcb074017e9db97a75537`
+- On-device policy evidence: `Distribution: Qualification`; **While App Is Open** selected
+- Exact identity/profile: `ILCE-7CM2` / `2.01` / protocol `101` / `modern`
+- Explicit location authorization: connected iPhone's current GPS, bounded from `2026-09-12T17:29:47+08:00` until Stop at `17:33:25+08:00`
+- Source fix accuracy: `±6 m`; precise source and image coordinates remain private
+- DD11 success/not-before bound: `2026-09-12T17:32:47+08:00`
+- Packet shape: DD21 `06 10 00 9c 02 00 00`; one accepted 95-byte DD11 packet
+- Sanitized operation order: `CC0B model → CC0A firmware → DD21 preflight → DD01 notify → DD30 lock → DD31 enable → DD32 time correction → DD33 area adjustment → DD11 location → DD31 disable → DD30 unlock → DD01 notify stop`
+- New image: original `HEIF`, captured `2026-09-12T17:32:50+08:00`, strictly after DD11 and before Stop
+- EXIF verifier: SonyGeoTag commit `81acebaa3177ad8ad589c64f665d8a3e9cab420e`; all 18 focused verifier tests passed
+- Private artifact: `DSC00507.HEIF`, retained outside this repository, SHA-256 `5c9605e291afa6340f1762e2748259237b90b4a3a0269ffe366080223a370f12`
+- Stop evidence: `stopped`, `Updating: No`, no pending reconnect, `Cleanup complete`
+- Result: `pass`; no protocol, packet, EXIF, timing, or cleanup deviation
+
+```json
+{
+  "capture_time": "2026-09-12T17:32:50+08:00",
+  "capture_time_source": "EXIF original time + offset",
+  "coordinate_tolerance_degrees": 0.0001,
+  "image_format": "HEIF",
+  "latitude_delta_degrees": 1.8888889030677092e-07,
+  "longitude_delta_degrees": 1.1111112030448567e-07,
+  "not_before": "2026-09-12T17:32:47+08:00",
+  "verified": true
+}
+```
+
+The qualification source HEIF, exact coordinates, and coordinate-bearing screenshots remain private and outside the repository. This result qualifies only the exact identity and foreground workflow above; it does not qualify another model, firmware, protocol, descriptor shape, or packet size. Public Release exposes Background by explicit product decision, but this evidence does not qualify its physical reliability.
+
+## Signed public Release configuration check
+
+- App: signed Release-optimized build `0.1 (3)` from commit `7539ae0`
+- Build evidence: Team `A4YQL6FFTK`, provisioned device confirmed, binary SHA-256 `7bdbcce7a761f65dfd55e7719038d87e2ec90ef7af88f4fce7ba09d487074f9f`
+- Install evidence: build 3 installed on the same paired iPhone 16 Pro while preserving app data
+- On-device evidence: user confirmed **Distribution: Public Release** and visible **Continue in Background** configuration
+- Camera writes: none authorized or performed with this build
+- Result: `pass` for signed installation and policy presentation only; foreground DD11/EXIF/Stop and physical Background reliability remain pending

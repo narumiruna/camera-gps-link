@@ -15,6 +15,8 @@ The App Store product name will remain **Camera GPS Link** so the app does not a
 The App Store subtitle and description may use the camera name only to describe compatibility accurately.
 The product page and in-app About information will state that the app is independent and is not affiliated with or endorsed by Sony.
 
+Update 2026-09-12: the user explicitly directed public Release to expose optional Background before physical background qualification. This changes availability, not evidence: Background remains documented as unverified and subject to Always Location permission and iOS scheduling.
+
 This decision does not remove capability-driven Swift protocol code or automated iOS fixtures from this repository.
 The Python CLI and its read-only research tools are maintained separately in the [SonyGeoTag repository](https://github.com/narumiruna/sony-geotag) and do not define the public iOS support claim.
 
@@ -130,7 +132,7 @@ The release is ready for App Store submission only when every item below is veri
 - [ ] A newly captured JPEG or HEIF file passes GPS EXIF verification.
 - [ ] The exact A7C II firmware `2.01` identity is verified in the iOS compatibility registry.
 - [ ] Every other model and unqualified firmware fails closed without a Release override.
-- [ ] Background behavior passes physical qualification, or the public background option is disabled.
+- [ ] Background behavior passes physical qualification; until then, public documentation must disclose that the user-directed option is unverified and opportunistic.
 - [ ] Privacy Policy and Support links are available inside the app and in App Store Connect.
 - [ ] Store metadata states A7C II-only compatibility and includes the independence statement.
 - [ ] App Review receives reproducible setup instructions and a hardware demonstration video.
