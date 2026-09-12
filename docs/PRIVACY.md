@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Effective date: September 4, 2026
+Effective date: September 12, 2026
 
 Camera GPS Link sends location information from an iPhone directly to a compatible camera over Bluetooth.
 This policy explains how the app handles information.
@@ -31,10 +31,13 @@ Health Alerts are optional local notifications managed by iOS. The app stores th
 ## Diagnostics
 
 The app maintains a bounded diagnostic log in memory to help troubleshoot camera and location status.
-Diagnostic information may include recent coordinates, camera connection state, and update times.
-The app does not upload diagnostic information automatically.
+Diagnostic logs and on-screen location details may include recent coordinates, camera connection state, and update times.
+
+**Copy Diagnostic Summary** is a separate action with an exact text preview. It includes app version/build, iOS version, distribution mode, recognized camera model/firmware/protocol, connection state, and age of the last confirmed camera update. It uses an explicit field allowlist and excludes coordinates, device identifiers, user-assigned camera names, raw Bluetooth payloads, free-form errors, and log messages. Unrecognized identity fields are shown as unknown. The copied summary stays on the iPhone clipboard, is not eligible for Universal Clipboard transfer, and expires after five minutes.
+
+The app does not upload diagnostic information automatically. Copying does not start geotagging or request Location or notification permission.
 Diagnostic information leaves the app only when the user explicitly copies or shares it.
-Users should review and redact sensitive coordinates before sharing a diagnostic log.
+**Copy Diagnostic Log** remains separate and does not provide the summary's privacy guarantees. Users should review and redact sensitive coordinates before sharing a log or screenshot.
 
 ## Retention and Deletion
 

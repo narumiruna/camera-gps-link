@@ -64,18 +64,23 @@ final class ConnectionHealthUITests: XCTestCase {
             HealthScenario(
                 name: "future-location", detail: "Fix time invalid", notice: "iPhone Location Needs Attention"),
             HealthScenario(name: "invalid-location", detail: "Invalid fix", notice: "iPhone Location Needs Attention"),
+            HealthScenario(name: "missing-location", detail: "No fix yet", notice: "Using Last Sent Location"),
         ]
 
         for scenario in scenarios {
             launch(scenario.name)
-            XCTAssertTrue(app.staticTexts["Ready to Geotag"].waitForExistence(timeout: 5), scenario.name)
+            let title = scenario.name == "low-accuracy" ? "Ready to Geotag" : "Using Last Sent Location"
+            XCTAssertTrue(app.staticTexts[title].waitForExistence(timeout: 5), scenario.name)
             XCTAssertTrue(app.staticTexts[scenario.detail].exists, scenario.name)
             XCTAssertTrue(app.staticTexts[scenario.notice].exists, scenario.name)
             if scenario.name == "low-accuracy" {
                 XCTAssertTrue(app.buttons["Send Current Location"].exists)
             } else {
                 XCTAssertFalse(app.buttons["Send Current Location"].exists)
+                XCTAssertFalse(app.staticTexts["Ready to Geotag"].exists)
             }
+            scrollUntilVisible(app.buttons["Stop Geotagging"])
+            XCTAssertTrue(app.buttons["Stop Geotagging"].isHittable)
             app.terminate()
         }
     }
@@ -114,6 +119,41 @@ final class ConnectionHealthUITests: XCTestCase {
         launch("low-accuracy")
         scrollUntilVisible(app.buttons["Send Current Location"])
         XCTAssertTrue(app.buttons["Send Current Location"].isHittable)
+    }
+
+    func testForegroundExplanationDoesNotDependOnHealthAlerts() {
+        for scenario in ["ready", "health-alerts-allowed", "public-release-settings"] {
+            launch(scenario)
+            let explanation = app.descendants(matching: .any)
+                .matching(identifier: "foreground-only-explanation").firstMatch
+            scrollUntilVisible(explanation)
+            XCTAssertTrue(explanation.exists, scenario)
+            XCTAssertTrue(explanation.label.contains("Locking the iPhone or switching apps stops location updates."))
+            app.terminate()
+        }
+        launch("background-partial")
+        XCTAssertTrue(app.staticTexts["Background Permission Needed"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["foreground-only-explanation"].exists)
+    }
+
+    func testCachedLocationStopRemainsReachableInLargestTextAndLandscape() {
+        launch(
+            "stale-location",
+            arguments: [
+                "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+            ]
+        )
+        XCTAssertTrue(app.staticTexts["Using Last Sent Location"].waitForExistence(timeout: 5))
+        let stop = app.buttons["Stop Geotagging"]
+        scrollUntilVisible(stop)
+        XCTAssertTrue(stop.isHittable)
+        stop.tap()
+        XCTAssertTrue(app.staticTexts["Stopped"].exists)
+        app.terminate()
+        XCUIDevice.shared.orientation = .landscapeLeft
+        launch("missing-location")
+        scrollUntilVisible(app.buttons["Stop Geotagging"])
+        XCTAssertTrue(app.buttons["Stop Geotagging"].isHittable)
     }
 
     func testForegroundSuspensionFixtureRecordsSanitizedAlertEvent() {

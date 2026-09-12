@@ -1,12 +1,15 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
-xcode_dev_dir := "/Applications/Xcode.app/Contents/Developer"
+xcode_dev_dir := env("DEVELOPER_DIR", "/Applications/Xcode.app/Contents/Developer")
+export DEVELOPER_DIR := xcode_dev_dir
 ios_project := "CameraGPSLink.xcodeproj"
 ios_target := "CameraGPSLink"
 ios_scheme := "CameraGPSLink"
 ios_smoke := "/tmp/CameraGPSLinkSmoke"
 ios_test_device_name := "CameraGPSLink Tests"
-ios_test_destination := "platform=iOS Simulator,name=" + ios_test_device_name + ",OS=latest"
+ios_test_os := env("IOS_TEST_OS", "latest")
+ios_test_runtime := env("IOS_TEST_RUNTIME", "")
+ios_test_destination := "platform=iOS Simulator,name=" + ios_test_device_name + ",OS=" + ios_test_os
 
 [default]
 all: check
@@ -65,20 +68,23 @@ ios-test-prepare:
     #!/usr/bin/env bash
     set -euo pipefail
     if ! DEVELOPER_DIR={{xcode_dev_dir}} xcrun simctl list devices available | grep -Fq '{{ios_test_device_name}} ('; then
-        runtime=$(DEVELOPER_DIR={{xcode_dev_dir}} xcrun simctl list runtimes available | awk '/^iOS / { runtime=$NF } END { print runtime }')
+        runtime='{{ios_test_runtime}}'
+        if [[ -z "$runtime" ]]; then
+            runtime=$(DEVELOPER_DIR={{xcode_dev_dir}} xcrun simctl list runtimes available | awk '/^iOS / { runtime=$NF } END { print runtime }')
+        fi
         test -n "$runtime"
         DEVELOPER_DIR={{xcode_dev_dir}} xcrun simctl create '{{ios_test_device_name}}' com.apple.CoreSimulator.SimDeviceType.iPhone-17 "$runtime" >/dev/null
     fi
 
 # Run the iOS XCTest unit suite
 [no-exit-message]
-ios-unit-test: ios-test-prepare
-    DEVELOPER_DIR={{xcode_dev_dir}} xcodebuild test -project {{ios_project}} -scheme {{ios_scheme}} -destination '{{ios_test_destination}}' -only-testing:CameraGPSLinkUnitTests
+ios-unit-test result="": ios-test-prepare
+    DEVELOPER_DIR={{xcode_dev_dir}} xcodebuild test -project {{ios_project}} -scheme {{ios_scheme}} -destination '{{ios_test_destination}}' -only-testing:CameraGPSLinkUnitTests {{if result == "" { "" } else { "-resultBundlePath '" + result + "'" }}}
 
 # Run the iOS XCUITest suite
 [no-exit-message]
-ios-ui-test: ios-test-prepare
-    DEVELOPER_DIR={{xcode_dev_dir}} xcodebuild test -project {{ios_project}} -scheme {{ios_scheme}} -destination '{{ios_test_destination}}' -only-testing:CameraGPSLinkUITests
+ios-ui-test result="" only="CameraGPSLinkUITests": ios-test-prepare
+    DEVELOPER_DIR={{xcode_dev_dir}} xcodebuild test -project {{ios_project}} -scheme {{ios_scheme}} -destination '{{ios_test_destination}}' -only-testing:'{{only}}' {{if result == "" { "" } else { "-resultBundlePath '" + result + "'" }}}
 
 # Run all iOS XCTest suites, resetting the dedicated simulator between test hosts
 [no-exit-message]

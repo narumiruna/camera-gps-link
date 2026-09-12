@@ -38,6 +38,7 @@ struct CameraServiceSnapshot: Equatable {
     var activeLinkIntent: Bool
     var updateInterval: TimeInterval
     var pairing = CameraPairingSnapshot()
+    var diagnosticIdentity: SonyCameraIdentity?
 }
 
 struct LocationServiceSnapshot {
@@ -120,7 +121,8 @@ final class CameraBLEServiceAdapter: CameraLinkServicing {
             pendingReconnectArmed: manager.pendingReconnectArmed,
             activeLinkIntent: manager.userLinkIntentActive,
             updateInterval: manager.updateInterval,
-            pairing: manager.pairingSnapshot
+            pairing: manager.pairingSnapshot,
+            diagnosticIdentity: manager.didCompleteIdentityDiscovery ? manager.currentIdentity : nil
         )
     }
 
@@ -264,6 +266,7 @@ final class CameraGPSLinkAppModel: ObservableObject {
     private let openSettingsAction: () -> Void
     private let backgroundRefreshIdentifier = "dev.narumi.cameragpslink.refresh"
     private var pendingStart = false
+    private var isStartingForegroundLink = false
     private var linkRequested = false
     private var isForeground = true
     private var lastHandledLifecyclePhase: AppLifecyclePhase?
@@ -276,6 +279,9 @@ final class CameraGPSLinkAppModel: ObservableObject {
     var cameraSnapshot: CameraServiceSnapshot { cameraService.snapshot }
     var locationSnapshot: LocationServiceSnapshot { locationService.snapshot }
     var healthMonitorSnapshot: ConnectionHealthMonitorSnapshot { healthMonitor.snapshot }
+    var diagnosticSummary: String {
+        DiagnosticsReport.make(camera: cameraSnapshot, mode: releasePolicy.mode, now: now())
+    }
 
     convenience init() {
         let diagnostics = DiagnosticsLogStore()
@@ -470,8 +476,8 @@ final class CameraGPSLinkAppModel: ObservableObject {
         pendingStart = false
         linkRequested = false
         transientError = nil
-        cameraService.cancelCurrentAttempt()
         locationService.stopUpdating()
+        cameraService.cancelCurrentAttempt()
         refreshViewState()
     }
 
@@ -513,8 +519,8 @@ final class CameraGPSLinkAppModel: ObservableObject {
         pendingStart = false
         linkRequested = false
         transientError = nil
-        cameraService.stopLink()
         locationService.stopUpdating()
+        cameraService.stopLink()
         refreshViewState()
     }
 
@@ -605,16 +611,24 @@ final class CameraGPSLinkAppModel: ObservableObject {
         pendingStart = false
         linkRequested = true
         transientError = nil
+        // Starting GPS can publish synchronously while BLE still exposes the old terminal state.
+        isStartingForegroundLink = true
         locationService.startUpdating()
         cameraService.startForegroundLink()
+        isStartingForegroundLink = false
+        serviceDidChange()
         scheduleBackgroundRefresh()
-        refreshViewState()
     }
 
     private func serviceDidChange() {
+        guard !isStartingForegroundLink else { return }
         let camera = cameraService.snapshot
         if Self.shouldClearLinkRequest(cameraState: camera.state, activeLinkIntent: camera.activeLinkIntent) {
             linkRequested = false
+            // stopUpdating publishes too; checking the snapshot makes reconciliation idempotent.
+            if locationService.snapshot.isUpdating {
+                locationService.stopUpdating()
+            }
         }
         let permission = locationService.snapshot.permission
         if pendingStart, permission.allowsForegroundLocation {
@@ -629,7 +643,9 @@ final class CameraGPSLinkAppModel: ObservableObject {
         {
             transientError = nil
         }
-        cameraService.sendLocationIfDue()
+        if linkRequested, isForeground || settings.backgroundLinkEnabled {
+            cameraService.sendLocationIfDue()
+        }
         refreshViewState()
     }
 
@@ -711,7 +727,7 @@ final class CameraGPSLinkAppModel: ObservableObject {
         cameraState: CameraConnectionState,
         activeLinkIntent: Bool
     ) -> Bool {
-        !activeLinkIntent && [.stopped, .failed, .unsupported].contains(cameraState)
+        !activeLinkIntent && [.stopping, .stopped, .failed, .unsupported, .bluetoothUnavailable].contains(cameraState)
     }
 
     private static func makeSnapshot(

@@ -223,7 +223,7 @@ final class CameraBLEManager: NSObject, ObservableObject {
 
         guard centralManager.state == .poweredOn else {
             foregroundTimeoutSession.end()
-            resumeWhenBluetoothPowersOn = false
+            endLinkIntent()
             state = .bluetoothUnavailable
             appendLog("Bluetooth is not powered on: \(centralManager.state.rawValue)")
             return
@@ -247,6 +247,16 @@ final class CameraBLEManager: NSObject, ObservableObject {
         activeSessionRequested = true
         appendLog("Background link enabled; attempting camera reconnect")
         armBackgroundReconnect(reason: "Background Link resume")
+    }
+
+    /// End automatic location/reconnect work without skipping the camera cleanup barrier.
+    func endLinkIntent() {
+        manualStopRequested = true
+        setUserLinkIntent(active: false)
+        activeSessionRequested = false
+        attemptOrigin = .none
+        resumeWhenBluetoothPowersOn = false
+        disarmPendingReconnect()
     }
 
     func cancelCurrentAttempt() {

@@ -58,7 +58,10 @@ final class GeotaggingHealthViewStateTests: XCTestCase {
     func testStaleFixWarnsWithoutDiscardingFreshCameraCache() {
         let state = makeState(locationAge: 121, accuracy: 8)
 
-        XCTAssertEqual(state.phase, .ready)
+        XCTAssertEqual(state.phase, .usingCachedLocation)
+        XCTAssertEqual(state.title, "Using Last Sent Location")
+        XCTAssertTrue(state.message.contains("12 seconds ago"))
+        XCTAssertEqual(state.primaryAction, .stop)
         XCTAssertEqual(locationDetail(in: state), "Stale · 2 minutes ago")
         XCTAssertEqual(state.notices.first?.id, "location-stale")
         XCTAssertNil(state.secondaryAction)
@@ -91,6 +94,45 @@ final class GeotaggingHealthViewStateTests: XCTestCase {
         XCTAssertEqual(state.primaryAction, .stop)
         XCTAssertEqual(state.notices.map(\.id), ["location-stale", "background-permission"])
         XCTAssertFalse(state.readiness.first(where: { $0.id == "update" })?.isReady ?? true)
+    }
+
+    func testUnwritablePhoneFixRetainsCameraAgeWithoutClaimingCurrentReadiness() {
+        for (age, accuracy) in [(nil, nil), (-11.0, 8.0), (0.0, -1.0), (121.0, 8.0)] as [(Double?, Double?)] {
+            let state = makeState(locationAge: age, accuracy: accuracy)
+            XCTAssertEqual(state.phase, .usingCachedLocation)
+            XCTAssertEqual(state.title, "Using Last Sent Location")
+            XCTAssertEqual(state.lastUpdateText, "12 seconds ago")
+            XCTAssertTrue(state.readiness.first { $0.id == "update" }?.isReady == true)
+            XCTAssertEqual(state.primaryAction, .stop)
+            XCTAssertNil(state.secondaryAction)
+        }
+    }
+
+    func testCachedPresentationPreservesFirstPacketAndFreshnessBoundaries() {
+        var snapshot = makeSnapshot(locationAge: 121, accuracy: 8, sentAge: 300)
+        XCTAssertEqual(GeotaggingViewState.make(from: snapshot, now: now).phase, .usingCachedLocation)
+        snapshot.lastSentAt = now.addingTimeInterval(-301)
+        snapshot.health = nil
+        XCTAssertEqual(GeotaggingViewState.make(from: snapshot, now: now).phase, .needsAttention)
+        snapshot.packetsSent = 0
+        snapshot.lastSentAt = nil
+        XCTAssertEqual(GeotaggingViewState.make(from: snapshot, now: now).phase, .waitingForLocation)
+        snapshot.locationTimestamp = now.addingTimeInterval(-120)
+        XCTAssertEqual(GeotaggingViewState.make(from: snapshot, now: now).phase, .sendingFirstLocation)
+        snapshot.packetsSent = 1
+        snapshot.lastSentAt = now
+        XCTAssertEqual(GeotaggingViewState.make(from: snapshot, now: now).phase, .ready)
+    }
+
+    func testForegroundExplanationUsesEffectiveAvailabilityRegardlessOfConnectionState() {
+        var snapshot = makeSnapshot(locationAge: 0, accuracy: 8, sentAge: 12)
+        for cameraState in [CameraConnectionState.idle, .scanning, .linked, .stopped] {
+            snapshot.cameraState = cameraState
+            let state = GeotaggingViewState.make(from: snapshot, now: now)
+            XCTAssertEqual(state.foregroundOnlyMessage, GeotaggingViewState.foregroundOnlyExplanation)
+        }
+        snapshot.backgroundEnabled = true
+        XCTAssertNil(GeotaggingViewState.make(from: snapshot, now: now).foregroundOnlyMessage)
     }
 
     private func makeState(locationAge: TimeInterval?, accuracy: Double?) -> GeotaggingViewState {

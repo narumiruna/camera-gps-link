@@ -7,6 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F91000000000000000000003 /* DiagnosticsReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F92000000000000000000003 /* DiagnosticsReport.swift */; };
+		F91000000000000000000004 /* DiagnosticSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F92000000000000000000004 /* DiagnosticSummaryView.swift */; };
+		F91000000000000000000005 /* DiagnosticsReportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F92000000000000000000005 /* DiagnosticsReportTests.swift */; };
+		F91000000000000000000006 /* DiagnosticsSummaryUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F92000000000000000000006 /* DiagnosticsSummaryUITests.swift */; };
+		F91000000000000000000002 /* CameraBLELifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F92000000000000000000002 /* CameraBLELifecycleTests.swift */; };
+		F91000000000000000000001 /* LocationSessionLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F92000000000000000000001 /* LocationSessionLifecycleTests.swift */; };
 		F81000000000000000000002 /* UITestAppearanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82000000000000000000002 /* UITestAppearanceTests.swift */; };
 		F81000000000000000000001 /* LinkAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82000000000000000000001 /* LinkAppearance.swift */; };
 		0B6CB9763455F1B66805D937 /* DiagnosticsLogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91EEF86295BDE3EF8944F6F1 /* DiagnosticsLogStore.swift */; };
@@ -70,6 +76,12 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		F92000000000000000000003 /* DiagnosticsReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsReport.swift; sourceTree = "<group>"; };
+		F92000000000000000000004 /* DiagnosticSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticSummaryView.swift; sourceTree = "<group>"; };
+		F92000000000000000000005 /* DiagnosticsReportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsReportTests.swift; sourceTree = "<group>"; };
+		F92000000000000000000006 /* DiagnosticsSummaryUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsSummaryUITests.swift; sourceTree = "<group>"; };
+		F92000000000000000000002 /* CameraBLELifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraBLELifecycleTests.swift; sourceTree = "<group>"; };
+		F92000000000000000000001 /* LocationSessionLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationSessionLifecycleTests.swift; sourceTree = "<group>"; };
 		F82000000000000000000002 /* UITestAppearanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestAppearanceTests.swift; sourceTree = "<group>"; };
 		F82000000000000000000001 /* LinkAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkAppearance.swift; sourceTree = "<group>"; };
 		030683E6BCA300F0509C6F20 /* UITestFixtures.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UITestFixtures.swift; sourceTree = "<group>"; };
@@ -151,6 +163,7 @@
 			isa = PBXGroup;
 			children = (
 				BC28FAA3D7B8CD04BA563E2A /* CameraGPSLinkUITests.swift */,
+				F92000000000000000000006 /* DiagnosticsSummaryUITests.swift */,
 				F60000000000000000000007 /* ConnectionHealthUITests.swift */,
 			);
 			path = CameraGPSLinkUITests;
@@ -160,6 +173,9 @@
 			isa = PBXGroup;
 			children = (
 				90A9F0D479AB410E42204A74 /* CameraGPSLinkUnitTests.swift */,
+				F92000000000000000000001 /* LocationSessionLifecycleTests.swift */,
+				F92000000000000000000002 /* CameraBLELifecycleTests.swift */,
+				F92000000000000000000005 /* DiagnosticsReportTests.swift */,
 				F82000000000000000000002 /* UITestAppearanceTests.swift */,
 				F40000000000000000000001 /* CameraBLEManagerTests.swift */,
 				F72000000000000000000004 /* CameraPairingTests.swift */,
@@ -197,6 +213,8 @@
 				DFD3A99718D2D7D7396A01A8 /* GeotaggingViewState.swift */,
 				3F1261685B92EB3D98C37A4C /* CameraGPSLinkAppModel.swift */,
 				91EEF86295BDE3EF8944F6F1 /* DiagnosticsLogStore.swift */,
+				F92000000000000000000003 /* DiagnosticsReport.swift */,
+				F92000000000000000000004 /* DiagnosticSummaryView.swift */,
 				E80F7E090D6DA23B15654EB6 /* GeotaggingHomeView.swift */,
 				F82000000000000000000001 /* LinkAppearance.swift */,
 				1665420B5C90F23BD5410EC6 /* LinkSettingsView.swift */,
@@ -363,6 +381,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				A33D26C0EE99B9A5BF13F34E /* CameraGPSLinkUnitTests.swift in Sources */,
+				F91000000000000000000001 /* LocationSessionLifecycleTests.swift in Sources */,
+				F91000000000000000000002 /* CameraBLELifecycleTests.swift in Sources */,
+				F91000000000000000000005 /* DiagnosticsReportTests.swift in Sources */,
 				F81000000000000000000002 /* UITestAppearanceTests.swift in Sources */,
 				F30000000000000000000001 /* CameraBLEManagerTests.swift in Sources */,
 				F71000000000000000000004 /* CameraPairingTests.swift in Sources */,
@@ -377,6 +398,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				6708E57438C9C737FCEC62A0 /* CameraGPSLinkUITests.swift in Sources */,
+				F91000000000000000000006 /* DiagnosticsSummaryUITests.swift in Sources */,
 				F50000000000000000000007 /* ConnectionHealthUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -395,6 +417,8 @@
 				E961AC5AA684726D3BEF44C5 /* GeotaggingViewState.swift in Sources */,
 				104595EFC68F4FC779E11225 /* CameraGPSLinkAppModel.swift in Sources */,
 				0B6CB9763455F1B66805D937 /* DiagnosticsLogStore.swift in Sources */,
+				F91000000000000000000003 /* DiagnosticsReport.swift in Sources */,
+				F91000000000000000000004 /* DiagnosticSummaryView.swift in Sources */,
 				2FC9FB19FA2EEB1EEE05CB95 /* GeotaggingHomeView.swift in Sources */,
 				F81000000000000000000001 /* LinkAppearance.swift in Sources */,
 				2B479F39225870DEB9C4D7E7 /* LinkSettingsView.swift in Sources */,

@@ -220,6 +220,7 @@ final class CameraGPSLinkUITests: XCTestCase {
         app.buttons["diagnostics-link"].tap()
 
         XCTAssertTrue(app.navigationBars["Diagnostics"].waitForExistence(timeout: 2))
+        scrollUntilVisible(app.staticTexts["DD11 packet"])
         XCTAssertTrue(app.staticTexts["DD11 packet"].exists)
         XCTAssertTrue(app.staticTexts["Profile"].exists)
         XCTAssertTrue(app.staticTexts["Confidence"].exists)

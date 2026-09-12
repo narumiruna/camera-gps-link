@@ -33,7 +33,7 @@ First use: tap **Add Camera** → **Search for Cameras**, select your camera, an
 6. Optionally enable **Health Alerts** in **Link Settings** to receive local warnings about interrupted or outdated camera location updates.
 7. Tap **Stop Geotagging** when the shooting session ends so the app can clean up the camera controls it acquired.
 
-**Ready to Geotag** appears only after the camera receives the first successful location packet in the current session.
+**Ready to Geotag** appears only after the camera receives the first successful location packet in the current session and the phone has a writable fix. **Using Last Sent Location** distinguishes a recent camera update from a stale or unavailable phone fix; it does not guarantee GPS in any particular photo.
 The public Release build remains foreground-only until background qualification passes. If Health Alerts are enabled, leaving the app stops that foreground-only session and posts a local reminder. Development and qualification background updates remain subject to iOS permissions and scheduling and cannot guarantee a fresh fix immediately before every photo. Notifications report loss of coverage; they do not keep Bluetooth or Location running.
 
 See the [`iOS app guide`](docs/ios-app.md) for the complete workflow, settings, permission states, diagnostics behavior, and platform limitations.
@@ -62,6 +62,32 @@ Run the complete local gate:
 just check
 ```
 
+### Continuous integration
+
+`.github/workflows/ios-check.yml` runs on pull requests and pushes to `main`. Three isolated `macos-26` jobs cover the full local gate:
+
+| Job | Local recipes |
+| --- | --- |
+| `iOS / checks` | `source-line-check-test`, `source-line-check`, `ios-smoke`, `ios-typecheck`, `ios-lint-project`, `ios-unit-test` |
+| `iOS / builds` | `ios-build-sim`, `ios-build-device-nosign`, `ios-build-release-nosign`, `ios-build-qualification-nosign` |
+| `iOS / ui` | `ios-ui-test` |
+
+CI selects Xcode 26.6, iOS Simulator 26.5, and an iPhone 17. Logs and XCTest result bundles are retained for seven days. Jobs time out after 30 minutes; newer runs cancel obsolete ones. No signing secrets, physical camera writes, or release workflows are used.
+
+All recipes select the same Xcode for Swift and `xcodebuild`, defaulting to `/Applications/Xcode.app/Contents/Developer`. Override `DEVELOPER_DIR` to use another compatible installation. `IOS_TEST_OS` and `IOS_TEST_RUNTIME` can pin the simulator OS and runtime identifier; defaults remain the latest installed iOS runtime. An existing dedicated simulator must match the selected OS. `just ios-test` recreates only that project simulator between unit and UI hosts.
+
+To retain a focused test result, pass a new result-bundle path:
+
+```bash
+mkdir -p build/test-results
+just ios-unit-test build/test-results/unit.xcresult
+just ios-ui-test build/test-results/ui.xcresult
+```
+
+To rerun one UI suite without repeating the full host, use `just ios-ui-test "" CameraGPSLinkUITests/DiagnosticsSummaryUITests`. Omit the selector for the complete UI gate.
+
+Do not run both test hosts concurrently against the same simulator.
+
 ## Project layout
 
 ```text
@@ -84,6 +110,7 @@ justfile                  Local iOS commands
 ## Limitations
 
 - The A7C II iOS write and fresh-photo GPS EXIF regression remains required before the exact identity can be promoted to verified.
+- Public Privacy Policy/Support hosting and in-app links remain pending. The repository document and issue links require repository access during private development.
 - Camera firmware other than a physically qualified version must fail closed in the public Release build.
 - Public Release background operation is disabled until physical qualification passes; development and qualification background execution remains opportunistic and can be prevented by force-quitting the app.
 - Real BLE behavior, camera writes, background restoration, and battery use require physical-device testing.

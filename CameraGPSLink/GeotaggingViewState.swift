@@ -61,6 +61,7 @@ enum GeotaggingPhase: Equatable {
     case waitingForLocation
     case sendingFirstLocation
     case ready
+    case usingCachedLocation
     case waitingInBackground
     case stopping
     case stopped
@@ -132,6 +133,7 @@ struct GeotaggingViewState: Equatable {
     var showsProgress: Bool
     var lastUpdateText: String
     var notices: [StatusNotice]
+    var foregroundOnlyMessage: String?
 
     var notice: String? {
         notices.first(where: { $0.id == "background-permission" })?.title
@@ -163,7 +165,8 @@ struct GeotaggingViewState: Equatable {
                 .requestingPermission, .searching, .connecting, .preparing, .sendingFirstLocation, .stopping,
             ].contains(phase),
             lastUpdateText: lastUpdate,
-            notices: notices(for: snapshot, health: health)
+            notices: notices(for: snapshot, health: health),
+            foregroundOnlyMessage: snapshot.backgroundEnabled ? nil : Self.foregroundOnlyExplanation
         )
     }
 
@@ -202,7 +205,8 @@ struct GeotaggingViewState: Equatable {
             guard snapshot.packetsSent > 0, snapshot.lastSentAt != nil else {
                 return health.locationFix.isWritable ? .sendingFirstLocation : .waitingForLocation
             }
-            return health.cameraUpdate.isFresh ? .ready : .needsAttention
+            guard health.cameraUpdate.isFresh else { return .needsAttention }
+            return health.locationFix.isWritable ? .ready : .usingCachedLocation
         case .stopping:
             return .stopping
         case .stopped:
@@ -250,6 +254,12 @@ struct GeotaggingViewState: Equatable {
             return ("Sending First Location…", "Wait for confirmation before taking geotagged photos.")
         case .ready:
             return ("Ready to Geotag", "New photos can use the latest location sent from this iPhone.")
+        case .usingCachedLocation:
+            return (
+                "Using Last Sent Location",
+                "The camera can use the location sent \(relativeUpdate(snapshot.lastSentAt, now: now)). "
+                    + "A current iPhone fix is needed before sending a new update."
+            )
         case .waitingInBackground:
             return (
                 "Waiting for Camera", "Camera GPS Link will reconnect when the remembered camera becomes available."
@@ -290,7 +300,7 @@ struct GeotaggingViewState: Equatable {
             return .cancel
         case .approvalRequired:
             return .approveExperimental
-        case .waitingForLocation, .sendingFirstLocation, .ready:
+        case .waitingForLocation, .sendingFirstLocation, .ready, .usingCachedLocation:
             return .stop
         case .needsAttention:
             if snapshot.locationPermission == .denied || snapshot.locationPermission == .restricted {

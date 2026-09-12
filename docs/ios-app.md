@@ -35,16 +35,20 @@ The home screen is organized around shooting readiness rather than BLE protocol 
 5. Development builds may show **Experimental Camera Profile** only after read-only identity, descriptor, and strict DD21 preflight; Cancel performs no subscription or application write. The exact A7C II qualification candidate may proceed without this volatile approval after recorded development evidence, while qualification and public Release builds never offer the override.
 6. Wait for **Ready to Geotag** before taking photos that need location data.
 
-**Ready to Geotag** appears only after the camera has successfully received at least one location packet in the current session. The Readiness group separately reports the camera, iPhone location, and last successful camera update.
+**Ready to Geotag** appears only after the camera has successfully received at least one location packet in the current session, its last update is no more than five minutes old, and the phone has a writable fix. The Readiness group separately reports the camera, iPhone location, and last successful camera update. This status does not verify GPS EXIF in individual photos.
 
-During a foreground connection attempt, **Cancel** remains available. Camera search, connection, and setup use bounded waits; a timeout preserves the remembered camera and offers **Retry** instead of leaving the interface indefinitely busy.
+During a foreground connection attempt, **Cancel** remains available. Camera search, connection, and setup use bounded waits; a timeout preserves the remembered camera and offers **Retry** instead of leaving the interface indefinitely busy. Terminal failures and unsupported identities stop iPhone location updates without bypassing camera-control cleanup. Enabling Background does not turn a failed foreground attempt into automatic retry; start again explicitly. Eligible background reconnection retains location updates when permissions and iOS allow them.
 
 While ready:
 
 - **Send Current Location** requests an immediate refresh when the iPhone has a writable fix.
 - **Stop Geotagging** safely closes the location link. It is reversible and does not delete settings or camera identity.
 
-The Readiness rows distinguish the camera's last confirmed update from the current iPhone fix. A camera update becomes delayed after five minutes. An iPhone fix is shown as stale after 120 seconds, invalid when its accuracy or timestamp cannot be used, and low accuracy above 100 m. Low accuracy is advisory and does not block a valid camera write. A fresh camera cache can remain usable while the app waits for a better or newer iPhone fix.
+The Readiness rows distinguish the camera's last confirmed update from the current iPhone fix. A camera update becomes delayed after five minutes. An iPhone fix is shown as stale after 120 seconds, invalid when its accuracy or timestamp cannot be used, and low accuracy above 100 m. Low accuracy is advisory and does not block a valid camera write.
+
+**Using Last Sent Location** replaces the green Ready presentation when the camera update is still recent but the phone fix is stale, missing, invalid, or future-dated. It shows when the location was sent and keeps **Stop Geotagging** available, without offering a manual send of an unusable fix. After the camera update exceeds five minutes, **Location Update Delayed** takes precedence.
+
+In foreground-only mode, the home screen always explains: **Keep this app open. Locking the iPhone or switching apps stops location updates.** This explanation does not depend on enabling Health Alerts.
 
 ## Link Settings
 
@@ -95,14 +99,16 @@ Background reconnect is shown as **Waiting for Camera**, not as an endless foreg
 
 **Diagnostics** is one level below the home screen and preserves the technical information needed for troubleshooting:
 
-- sanitized detected model, firmware, protocol, modern/legacy profile, and confidence;
+- detected model, firmware, protocol, modern/legacy profile, and confidence;
 - packets sent, strict DD11/DD21 packet mode, operation order, cleanup status, update interval, and pending reconnect;
 - Health Alerts preference, notification permission, health classification, and managed alert deadline;
 - pairing state and last-send time, without exposing the private remembered peripheral identifier;
 - location permission, mode, coordinate, accuracy, and fix time;
 - a bounded 120-line debug log.
 
-Diagnostic logs can include recent coordinates. Review the warning and log contents before using **Copy Diagnostic Log** or sharing the result. Local health notification text never includes coordinates, peripheral identifiers, raw camera identity, firmware, or BLE payloads.
+**Copy Diagnostic Summary** works even when the log is empty. **Summary Preview** shows the exact allowlisted text: app version/build, iOS version, distribution mode, a recognized exact camera identity, connection state, and age of the last confirmed update. Unknown or unrecognized identity fields display **Unknown**. The summary excludes coordinates, camera nicknames, device identifiers, raw BLE payloads, free-form errors, and log messages. Copying does not request permissions, start geotagging, or upload data. Its clipboard entry is local to the iPhone and expires after five minutes.
+
+**Copy Diagnostic Log** remains separate. Diagnostic logs and on-screen location details can include recent coordinates; review the warning and log contents before copying or sharing them. The entire Diagnostics screen is not de-identified. Local health notification text never includes coordinates, peripheral identifiers, raw camera identity, firmware, or BLE payloads.
 
 ## Sony protocol behavior
 

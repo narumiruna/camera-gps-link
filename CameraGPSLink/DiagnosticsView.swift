@@ -17,6 +17,8 @@ struct DiagnosticsView: View {
 
     var body: some View {
         List {
+            DiagnosticSummaryView(summary: appModel.diagnosticSummary)
+
             Section {
                 diagnosticRow("Target", camera.targetName)
                 diagnosticRow("Raw state", camera.state.rawValue)
@@ -142,6 +144,7 @@ struct DiagnosticsView: View {
             .listRowBackground(LinkAppearance.surface)
         }
         .linkListBackground()
+        .modifier(DiagnosticsScrollEdges())
         .navigationTitle("Diagnostics")
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
@@ -194,5 +197,16 @@ struct DiagnosticsView: View {
             UIPasteboard.general.string = logStore.copyText
         #endif
         didCopy = true
+    }
+}
+
+private struct DiagnosticsScrollEdges: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, macOS 26.0, *) {
+            // A hard edge prevents the system's translucent fade from reducing text contrast.
+            content.scrollEdgeEffectStyle(.hard, for: .all)
+        } else {
+            content
+        }
     }
 }

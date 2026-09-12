@@ -1,6 +1,9 @@
 import Foundation
 
 extension GeotaggingViewState {
+    static let foregroundOnlyExplanation =
+        "Keep this app open. Locking the iPhone or switching apps stops location updates."
+
     static func resolvedHealth(for snapshot: GeotaggingSnapshot, now: Date) -> ConnectionHealth {
         if let health = snapshot.health { return health }
         let fallbackTimestamp = snapshot.locationTimestamp ?? (snapshot.hasLocation ? now : nil)

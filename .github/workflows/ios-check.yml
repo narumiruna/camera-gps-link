@@ -1,0 +1,74 @@
+name: iOS checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-check-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: iOS / ${{ matrix.gate }}
+    runs-on: macos-26
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        gate: [checks, builds, ui]
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      IOS_TEST_OS: "26.5"
+      IOS_TEST_RUNTIME: com.apple.CoreSimulator.SimRuntime.iOS-26-5
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Prepare tools and record runner configuration
+        run: |
+          mkdir -p build/verification build/test-results
+          if ! command -v just >/dev/null; then
+            brew install just
+          fi
+          {
+            sw_vers
+            uname -m
+            xcodebuild -version
+            swiftc --version
+            just --version
+            xcrun simctl list runtimes available
+            xcrun simctl list devicetypes
+          } 2>&1 | tee build/verification/toolchain.log
+      - name: Smoke, lint, and unit tests
+        if: matrix.gate == 'checks'
+        run: |
+          just source-line-check-test source-line-check ios-smoke ios-typecheck ios-lint-project \
+            ios-unit-test build/test-results/unit.xcresult 2>&1 | tee build/verification/checks.log
+      - name: Simulator and unsigned distribution-policy builds
+        if: matrix.gate == 'builds'
+        run: |
+          just ios-build-sim ios-build-device-nosign ios-build-release-nosign \
+            ios-build-qualification-nosign 2>&1 | tee build/verification/builds.log
+      - name: UI tests on an isolated simulator
+        if: matrix.gate == 'ui'
+        run: |
+          just ios-ui-test build/test-results/ui.xcresult 2>&1 | tee build/verification/ui.log
+      - name: Retain verification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ios-${{ matrix.gate }}-${{ github.run_attempt }}
+          path: |
+            build/verification/
+            build/test-results/
+          if-no-files-found: warn
+          retention-days: 7

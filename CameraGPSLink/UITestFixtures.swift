@@ -154,7 +154,8 @@
                 camera.lastSentAt = now
                 camera.activeLinkIntent = true
                 location = fixtureLocation(now: now)
-            case "stale-location", "low-accuracy", "future-location", "invalid-location", "coexisting-notices":
+            case "stale-location", "low-accuracy", "future-location", "invalid-location", "missing-location",
+                "coexisting-notices":
                 settings.healthAlertsEnabled = true
                 camera.state = .linked
                 camera.packetsSent = 1
@@ -166,7 +167,7 @@
                     location = fixtureLocation(now: now, accuracy: 101)
                 } else if scenario == "future-location" {
                     location = fixtureLocation(now: now, age: -11)
-                } else {
+                } else if scenario != "missing-location" {
                     location = fixtureLocation(now: now, accuracy: -1)
                 }
                 if scenario == "coexisting-notices" {
@@ -438,7 +439,8 @@
             lastError: nil,
             pendingReconnectArmed: false,
             activeLinkIntent: false,
-            updateInterval: 120
+            updateInterval: 120,
+            diagnosticIdentity: SonyCameraIdentity(model: "ILCE-7CM2", firmware: "2.01", protocolVersion: 101)
         )
     }
 #endif
