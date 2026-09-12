@@ -196,3 +196,12 @@ The development policy may now reuse this exact qualification candidate without 
 ```
 
 The qualification source HEIF, exact coordinates, and coordinate-bearing screenshots remain private and outside the repository. This result qualifies only the exact identity and foreground workflow above; it does not qualify another model, firmware, protocol, descriptor shape, or packet size. Public Release exposes Background by explicit product decision, but this evidence does not qualify its physical reliability.
+
+## Signed public Release configuration check
+
+- App: signed Release-optimized build `0.1 (3)` from commit `7539ae0`
+- Build evidence: Team `A4YQL6FFTK`, provisioned device confirmed, binary SHA-256 `7bdbcce7a761f65dfd55e7719038d87e2ec90ef7af88f4fce7ba09d487074f9f`
+- Install evidence: build 3 installed on the same paired iPhone 16 Pro while preserving app data
+- On-device evidence: user confirmed **Distribution: Public Release** and visible **Continue in Background** configuration
+- Camera writes: none authorized or performed with this build
+- Result: `pass` for signed installation and policy presentation only; foreground DD11/EXIF/Stop and physical Background reliability remain pending
