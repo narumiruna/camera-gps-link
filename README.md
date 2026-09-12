@@ -74,7 +74,7 @@ just check
 
 CI selects Xcode 26.6, iOS Simulator 26.5, and an iPhone 17. Logs and XCTest result bundles are retained for seven days. Jobs time out after 30 minutes; newer runs cancel obsolete ones. No signing secrets, physical camera writes, or release workflows are used.
 
-All recipes select the same Xcode for Swift and `xcodebuild`, defaulting to `/Applications/Xcode.app/Contents/Developer`. Override `DEVELOPER_DIR` to use another compatible installation. `IOS_TEST_OS` and `IOS_TEST_RUNTIME` can pin the simulator OS and runtime identifier; defaults remain the latest installed iOS runtime. An existing dedicated simulator must match the selected OS. `just ios-test` recreates only that project simulator between unit and UI hosts.
+All recipes select the same Xcode for Swift and `xcodebuild`, defaulting to `/Applications/Xcode.app/Contents/Developer`. Override `DEVELOPER_DIR` to use another compatible installation. `IOS_TEST_OS` and `IOS_TEST_RUNTIME` can pin the simulator OS and runtime identifier; defaults remain the latest installed iOS runtime. `ios-test-prepare` reuses only one available dedicated simulator on the resolved runtime, recreates mismatched or duplicate project simulators, and rejects conflicting explicit OS/runtime values before deletion. `just ios-test` recreates only that project simulator between unit and UI hosts.
 
 To retain a focused test result, pass a new result-bundle path:
 

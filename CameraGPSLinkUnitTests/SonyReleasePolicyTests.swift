@@ -107,7 +107,7 @@ final class SonyReleasePolicyTests: XCTestCase {
         )
     }
 
-    func testPublicReleaseAcceptsPromotedCandidateAndKeepsBackgroundOff() {
+    func testPublicReleaseAcceptsPromotedCandidateAndAllowsBackground() {
         let fixture = makeCandidate()
         let policy = SonyReleasePolicy(mode: .publicRelease)
         let compatibility = SonyCompatibility(confidence: .experimental, evidence: nil)
