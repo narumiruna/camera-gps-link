@@ -56,7 +56,7 @@ final class SupportLinksUITests: XCTestCase {
             accuracy.tap()
             XCTAssertTrue(app.buttons["settings-apply"].isEnabled)
         }
-        let link = app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+        let link = app.buttons[identifier]
         scrollUntilVisible(link)
         XCTAssertTrue(link.isHittable)
         XCTAssertGreaterThanOrEqual(link.frame.minY, app.navigationBars["Link Settings"].frame.maxY)
@@ -86,7 +86,11 @@ final class SupportLinksUITests: XCTestCase {
             let top = navigationBar.frame.maxY + 8
             let bottom = app.frame.maxY - 40
             let frame = element.exists ? element.frame : .zero
-            if !frame.isEmpty, frame.minY >= top, frame.maxY <= bottom, element.isHittable {
+            // Off-screen SwiftUI nodes can report an invalid activation point during a scroll.
+            // Poll geometry only; verify the actual button's hittability after it is fully visible.
+            if !frame.isEmpty, frame.minX >= app.frame.minX, frame.maxX <= app.frame.maxX,
+                frame.minY >= top, frame.maxY <= bottom
+            {
                 return
             }
             let scrollDown = !frame.isEmpty && frame.minY < top

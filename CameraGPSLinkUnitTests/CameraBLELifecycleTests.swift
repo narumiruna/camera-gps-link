@@ -101,6 +101,71 @@ final class CameraBLELifecycleTests: XCTestCase {
         XCTAssertTrue(manager.cleanupDiagnostic?.hasPrefix("Incomplete cleanup") == true)
     }
 
+    func testBackgroundBluetoothLossDiscardsReadOnlyPreflightBeforeWaiting() {
+        for state in [CBManagerState.poweredOff, .resetting, .unknown] {
+            let manager = makeManager(origin: .background)
+            stageReadOnlyPreflight(manager)
+            let timeout = manager.operationTimeoutTimer
+            manager.handleBluetoothState(state)
+
+            assertPreflightDiscarded(manager)
+            XCTAssertFalse(timeout?.isValid ?? true)
+            XCTAssertTrue(manager.userLinkIntentActive)
+            XCTAssertTrue(manager.activeSessionRequested)
+            XCTAssertTrue(manager.resumeWhenBluetoothPowersOn)
+            XCTAssertEqual(manager.attemptOrigin, .background)
+            // A timeout already queued on the run loop must not terminate the retained retry.
+            manager.handleOperationTimeout()
+            XCTAssertTrue(manager.userLinkIntentActive)
+            XCTAssertEqual(manager.state, .bluetoothUnavailable)
+            manager.stopLink()
+        }
+    }
+
+    func testForegroundBluetoothLossDiscardsReadOnlyPreflightForExplicitRetry() {
+        let manager = makeManager(origin: .foreground)
+        stageReadOnlyPreflight(manager)
+        manager.handleBluetoothState(.poweredOff)
+
+        assertPreflightDiscarded(manager)
+        assertEnded(manager)
+        XCTAssertTrue(manager.canStart)
+        XCTAssertFalse(manager.resumeWhenBluetoothPowersOn)
+    }
+
+    private func stageReadOnlyPreflight(_ manager: CameraBLEManager) {
+        manager.state = .discovering
+        manager.pendingOperation = .read(name: "DD21 preflight", uuid: "dd21", required: true, onValue: nil)
+        manager.startOperationTimeout()
+        manager.operationQueue = [
+            QueuedBLEOperation(name: "stale setup", required: true) {
+                XCTFail("Invalidated setup must not execute")
+            }
+        ]
+        manager.onQueueEmpty = { XCTFail("Invalidated queue completion must not execute") }
+        manager.didCompleteIdentityDiscovery = true
+        manager.didStartLocationSetup = true
+        manager.currentIdentity = SonyCameraIdentity(model: "ILCE-7CM2", firmware: "2.01", protocolVersion: 101)
+        manager.pendingCharacteristicServices = ["fixture"]
+        manager.timedOutCallbackDebt = ["read:dd21": 1]
+        manager.pendingReconnectArmed = true
+    }
+
+    private func assertPreflightDiscarded(
+        _ manager: CameraBLEManager, file: StaticString = #filePath, line: UInt = #line
+    ) {
+        XCTAssertNil(manager.pendingOperation, file: file, line: line)
+        XCTAssertNil(manager.operationTimeoutTimer, file: file, line: line)
+        XCTAssertTrue(manager.operationQueue.isEmpty, file: file, line: line)
+        XCTAssertNil(manager.onQueueEmpty, file: file, line: line)
+        XCTAssertFalse(manager.didCompleteIdentityDiscovery, file: file, line: line)
+        XCTAssertFalse(manager.didStartLocationSetup, file: file, line: line)
+        XCTAssertNil(manager.currentIdentity, file: file, line: line)
+        XCTAssertTrue(manager.pendingCharacteristicServices.isEmpty, file: file, line: line)
+        XCTAssertTrue(manager.timedOutCallbackDebt.isEmpty, file: file, line: line)
+        XCTAssertFalse(manager.pendingReconnectArmed, file: file, line: line)
+    }
+
     private func makeManager(origin: CameraAttemptOrigin) -> CameraBLEManager {
         let manager = CameraBLEManager(
             diagnosticsStore: DiagnosticsLogStore(),

@@ -43,11 +43,17 @@ extension CameraBLEManager: CBCentralManagerDelegate {
                 lastError = cleanupDiagnostic
                 state = .failed
             } else {
-                stopTimer()
                 let canWaitInBackground =
                     backgroundLinkEnabled && userLinkIntentActive && !manualStopRequested
                     && attemptOrigin != .foreground
                     && [.poweredOff, .resetting, .unknown].contains(bluetoothState)
+                // No controls need compensation. Discard the invalid connection before retry;
+                // stale reads/timeouts must not block discovery or end the retained intent.
+                state = .bluetoothUnavailable
+                peripheral?.delegate = nil
+                peripheral = nil
+                prepareForNewSession(resetCounters: true)
+                pendingReconnectArmed = false
                 if canWaitInBackground {
                     // Includes persisted intent before CoreBluetooth restoration finishes.
                     activeSessionRequested = true
@@ -56,7 +62,6 @@ extension CameraBLEManager: CBCentralManagerDelegate {
                 } else {
                     endLinkIntent()
                 }
-                state = .bluetoothUnavailable
             }
             appendLog("Bluetooth state changed: \(bluetoothState.rawValue)")
         @unknown default:
