@@ -17,7 +17,7 @@ struct DiagnosticsView: View {
 
     var body: some View {
         List {
-            Section("Camera Connection") {
+            Section {
                 diagnosticRow("Target", camera.targetName)
                 diagnosticRow("Raw state", camera.state.rawValue)
                 if let name = camera.discoveredCameraName {
@@ -49,9 +49,12 @@ struct DiagnosticsView: View {
                 if let error = camera.lastError {
                     diagnosticError(error)
                 }
+            } header: {
+                Label("Camera Connection", systemImage: "camera")
             }
+            .listRowBackground(LinkAppearance.surface)
 
-            Section("Pairing Initialization") {
+            Section {
                 diagnosticRow("Status", camera.pairingStatus)
                 Text(
                     "EE01 is never part of a location session. "
@@ -61,17 +64,23 @@ struct DiagnosticsView: View {
                 .foregroundStyle(.secondary)
                 Button("Search and Pair Camera") { showsPairing = true }
                     .accessibilityIdentifier("request-pairing-init")
+            } header: {
+                Label("Pairing Initialization", systemImage: "link")
             }
+            .listRowBackground(LinkAppearance.surface)
 
-            Section("Health Alerts") {
+            Section {
                 diagnosticRow("Preference", appModel.settings.healthAlertsEnabled ? "On" : "Off")
                 diagnosticRow("Notification permission", appModel.notificationAuthorization.label)
                 diagnosticRow("Health", appModel.healthMonitorSnapshot.healthClassification)
                 diagnosticRow("Managed alerts", appModel.healthMonitorSnapshot.pendingKindLabel)
                 diagnosticRow("Next alert", appModel.healthMonitorSnapshot.pendingDeadlineLabel)
+            } header: {
+                Label("Health Alerts", systemImage: "heart.text.square")
             }
+            .listRowBackground(LinkAppearance.surface)
 
-            Section("iPhone Location") {
+            Section {
                 diagnosticRow("Permission", location.permission.label)
                 diagnosticRow("Mode", location.updateModeLabel)
                 diagnosticRow("Updating", location.isUpdating ? "Yes" : "No")
@@ -90,18 +99,25 @@ struct DiagnosticsView: View {
                 if let error = location.lastError {
                     diagnosticError(error)
                 }
+            } header: {
+                Label("iPhone Location", systemImage: "location")
             }
+            .listRowBackground(LinkAppearance.surface)
 
-            Section("Debug Log") {
+            Section {
                 Text("Diagnostic logs may include recent coordinates. Review them before sharing.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("diagnostics-privacy-warning")
 
-                Button(didCopy ? "Copied Diagnostic Log" : "Copy Diagnostic Log") {
-                    copyLog()
+                Button(action: copyLog) {
+                    Label(
+                        didCopy ? "Copied Diagnostic Log" : "Copy Diagnostic Log",
+                        systemImage: didCopy ? "checkmark" : "doc.on.doc"
+                    )
                 }
+                .buttonStyle(LinkActionButtonStyle(prominent: false))
                 .disabled(logStore.lines.isEmpty)
                 .accessibilityIdentifier("copy-diagnostics")
 
@@ -120,8 +136,12 @@ struct DiagnosticsView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
+            } header: {
+                Label("Debug Log", systemImage: "text.alignleft")
             }
+            .listRowBackground(LinkAppearance.surface)
         }
+        .linkListBackground()
         .navigationTitle("Diagnostics")
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
@@ -159,7 +179,7 @@ struct DiagnosticsView: View {
     }
 
     private func valueText(_ value: String, monospaced: Bool) -> Text {
-        let text = Text(value).foregroundColor(.secondary)
+        let text = Text(value).foregroundColor(LinkAppearance.secondaryText)
         return monospaced ? text.font(.caption.monospaced()) : text
     }
 

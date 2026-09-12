@@ -43,8 +43,9 @@ struct LinkSettingsView: View {
                     .accessibilityIdentifier("connection-availability")
                     .focusable()
                 } header: {
-                    Text("Connection Availability")
+                    Label("Connection Availability", systemImage: "antenna.radiowaves.left.and.right")
                 }
+                .listRowBackground(LinkAppearance.surface)
 
                 Section {
                     Picker("Location Updates", selection: $draft.value.locationUpdates) {
@@ -56,12 +57,15 @@ struct LinkSettingsView: View {
                     .accessibilityIdentifier("location-updates")
                     .focusable()
                 } header: {
-                    Text("Location Updates")
+                    Label("Location Updates", systemImage: "location")
                 }
+                .listRowBackground(LinkAppearance.surface)
 
                 Section {
-                    Toggle("Health Alerts", isOn: $draft.value.healthAlertsEnabled)
-                        .accessibilityIdentifier("health-alerts-toggle")
+                    Toggle(isOn: $draft.value.healthAlertsEnabled) {
+                        Label("Health Alerts", systemImage: "bell.badge")
+                    }
+                    .accessibilityIdentifier("health-alerts-toggle")
                     LabeledContent("Notification Permission", value: notificationAuthorization.label)
                         .accessibilityElement(children: .combine)
                         .accessibilityIdentifier("health-alerts-permission")
@@ -77,26 +81,33 @@ struct LinkSettingsView: View {
                             .accessibilityIdentifier("health-alerts-open-settings")
                     }
                 } header: {
-                    Text("Health Alerts")
+                    Label("Health Alerts", systemImage: "heart.text.square")
                 } footer: {
                     Text(
                         "Warns about interrupted or outdated camera location updates. "
                             + "Notifications do not keep the app running."
                     )
                 }
+                .listRowBackground(LinkAppearance.surface)
 
                 Section("Effect Preview") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(draft.value.summary)
-                            .font(.headline)
-                        Text(draft.value.effectPreview)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                    HStack(alignment: .top, spacing: 12) {
+                        LinkIcon(symbol: "sparkles")
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(draft.value.summary)
+                                .font(.headline)
+                            Text(draft.value.effectPreview)
+                                .font(.subheadline)
+                                .foregroundStyle(LinkAppearance.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
+                    .padding(.vertical, 6)
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel("Effect preview. \(draft.value.summary). \(draft.value.effectPreview)")
                     .accessibilityIdentifier("settings-preview")
                 }
+                .listRowBackground(LinkAppearance.accentSurface)
 
                 if let applyError {
                     Section {
@@ -105,8 +116,10 @@ struct LinkSettingsView: View {
                             .fixedSize(horizontal: false, vertical: true)
                             .accessibilityIdentifier("settings-error")
                     }
+                    .listRowBackground(LinkAppearance.surface)
                 }
             }
+            .linkListBackground()
             .navigationTitle("Link Settings")
             #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
@@ -125,19 +138,19 @@ struct LinkSettingsView: View {
                     .keyboardShortcut(.cancelAction)
                     .disabled(isApplying)
                     .accessibilityIdentifier("settings-cancel")
-                    .focusable()
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Apply") {
                         applyDraft()
                     }
+                    .fontWeight(.semibold)
                     .keyboardShortcut(.defaultAction)
                     .disabled(!draft.hasChanges || isApplying)
                     .accessibilityIdentifier("settings-apply")
-                    .focusable()
                 }
             }
         }
+        .tint(LinkAppearance.accent)
     }
 
     private func cancelDraft() {

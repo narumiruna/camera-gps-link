@@ -1,10 +1,7 @@
 import SwiftUI
 
-#if canImport(UIKit)
-    import UIKit
-#endif
-
 struct GeotaggingHomeView<Diagnostics: View>: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let state: GeotaggingViewState
     let settings: LinkSettings
     let perform: (GeotaggingAction) -> Void
@@ -13,70 +10,98 @@ struct GeotaggingHomeView<Diagnostics: View>: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 18) {
                 statusSection
                 readinessSection
-                preferencesSection
-                diagnosticsLink
+                toolsSection
             }
             .frame(maxWidth: 680, alignment: .leading)
-            .padding(.horizontal)
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
             .padding(.bottom, 28)
+            .frame(maxWidth: .infinity)
         }
-        .background(pageBackgroundColor)
+        .background(LinkAppearance.page)
     }
 
     private var statusSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Image(systemName: statusSymbol)
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(statusColor)
-                    .accessibilityHidden(true)
-                Text(state.title)
-                    .font(.title2.bold())
-                    .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 14) {
+                statusEmblem
+                VStack(alignment: .leading, spacing: 5) {
+                    if !dynamicTypeSize.isAccessibilitySize {
+                        Text("LOCATION LINK")
+                            .font(.caption2.weight(.bold))
+                            .tracking(1.6)
+                            .foregroundStyle(LinkAppearance.secondaryText)
+                    }
+                    Text(state.title)
+                        .font(.title2.weight(.bold))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityAddTraits(.isHeader)
+                }
             }
 
             Text(state.message)
-                .font(.body)
+                .font(.subheadline)
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
+                .lineSpacing(3)
 
             if state.showsProgress {
                 ProgressView()
+                    .tint(LinkAppearance.accent)
                     .accessibilityLabel(state.title)
                     .accessibilityIdentifier("connection-progress")
             }
 
             ForEach(state.notices) { notice in
-                VStack(alignment: .leading, spacing: 8) {
-                    Label(notice.title, systemImage: "exclamationmark.triangle.fill")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                    Text(notice.message)
-                        .font(.footnote)
-                        .foregroundStyle(.primary)
-                    if let action = notice.action, let actionLabel = notice.actionLabel {
-                        Button(actionLabel) {
-                            perform(action)
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(.primary)
-                        .accessibilityIdentifier("notice-action-\(notice.id)")
-                    }
-                }
-                .padding(12)
-                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
-                .accessibilityElement(children: .contain)
-                .accessibilityIdentifier("notice-\(notice.id)")
+                noticeCard(notice)
             }
 
-            actionButtons
+            VStack(spacing: 10) {
+                actionButtons
+            }
         }
-        .sectionSurface()
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .linkCard()
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("geotagging-status")
+    }
+
+    private var statusEmblem: some View {
+        Image(systemName: statusSymbol)
+            .font(.system(size: 25, weight: .medium))
+            .foregroundStyle(statusColor)
+            .frame(width: 56, height: 56)
+            .background(statusColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 18))
+            .accessibilityHidden(true)
+    }
+
+    private func noticeCard(_ notice: StatusNotice) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(notice.title, systemImage: "exclamationmark.triangle.fill")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(LinkAppearance.warning)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(notice.message)
+                .font(.footnote)
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+            if let action = notice.action, let actionLabel = notice.actionLabel {
+                Button(actionLabel) {
+                    perform(action)
+                }
+                .buttonStyle(LinkActionButtonStyle(prominent: false))
+                .accessibilityIdentifier("notice-action-\(notice.id)")
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(LinkAppearance.warningSurface, in: RoundedRectangle(cornerRadius: 16))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("notice-\(notice.id)")
     }
 
     @ViewBuilder
@@ -85,24 +110,21 @@ struct GeotaggingHomeView<Diagnostics: View>: View {
             Button {
                 perform(action)
             } label: {
-                Text(label)
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 44)
+                Label(label, systemImage: actionSymbol(action))
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.primary)
+            .buttonStyle(LinkActionButtonStyle())
             .keyboardShortcut(.defaultAction)
             .accessibilityIdentifier("primary-action")
             .focusable()
         }
 
         if let action = state.secondaryAction, let label = state.secondaryActionLabel {
-            Button(label) {
+            Button {
                 perform(action)
+            } label: {
+                Label(label, systemImage: actionSymbol(action))
             }
-            .buttonStyle(.bordered)
-            .tint(.primary)
-            .frame(minHeight: 44)
+            .buttonStyle(LinkActionButtonStyle(prominent: false))
             .accessibilityIdentifier("secondary-action")
             .focusable()
         }
@@ -112,37 +134,46 @@ struct GeotaggingHomeView<Diagnostics: View>: View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Readiness")
                 .font(.headline)
-                .padding(.bottom, 6)
+                .accessibilityAddTraits(.isHeader)
+                .padding(.bottom, 4)
 
             ForEach(Array(state.readiness.enumerated()), id: \.element.id) { index, item in
                 readinessRow(item)
                 if index < state.readiness.count - 1 {
-                    Divider().padding(.leading, 34)
+                    Divider().overlay(LinkAppearance.secondaryText.opacity(0.08))
+                        .padding(.leading, 50)
                 }
             }
         }
-        .sectionSurface()
+        .padding(.horizontal, 18)
+        .padding(.top, 16)
+        .padding(.bottom, 4)
+        .linkCard()
         .accessibilityIdentifier("readiness")
     }
 
     private func readinessRow(_ item: ReadinessItem) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: item.symbolName)
-                .frame(width: 22, height: 22)
-                .foregroundStyle(item.isReady ? Color.green : Color.secondary)
-                .accessibilityHidden(true)
+        HStack(alignment: .center, spacing: 12) {
+            LinkIcon(
+                symbol: item.symbolName,
+                color: item.isReady ? LinkAppearance.positive : LinkAppearance.secondaryText
+            )
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(item.title)
-                    Spacer(minLength: 16)
+                        .font(.subheadline.weight(.medium))
+                    Spacer(minLength: 12)
                     Text(item.detail)
-                        .foregroundStyle(.primary)
+                        .font(.subheadline)
+                        .foregroundStyle(LinkAppearance.secondaryText)
                         .multilineTextAlignment(.trailing)
                 }
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(item.title)
+                        .font(.subheadline.weight(.medium))
                     Text(item.detail)
-                        .foregroundStyle(.primary)
+                        .font(.subheadline)
+                        .foregroundStyle(LinkAppearance.secondaryText)
                 }
             }
             .fixedSize(horizontal: false, vertical: true)
@@ -153,64 +184,67 @@ struct GeotaggingHomeView<Diagnostics: View>: View {
         .accessibilityIdentifier("readiness-\(item.id)")
     }
 
-    private var preferencesSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
+    private var toolsSection: some View {
+        VStack(spacing: 0) {
             Button(action: showSettings) {
-                HStack(alignment: .center, spacing: 12) {
-                    Image(systemName: "slider.horizontal.3")
-                        .frame(width: 22)
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Link Settings")
-                            .foregroundStyle(.primary)
-                        Text(settings.summary)
-                            .font(.subheadline)
-                            .foregroundStyle(.primary)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption.bold())
-                        .foregroundStyle(.tertiary)
-                        .accessibilityHidden(true)
-                }
-                .contentShape(Rectangle())
-                .frame(minHeight: 44)
+                toolRow(title: "Link Settings", detail: settings.summary, symbol: "slider.horizontal.3")
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Link Settings, \(settings.summary)")
             .accessibilityHint("Opens settings with a preview before applying changes")
             .accessibilityIdentifier("link-settings")
             .focusable()
+
+            Divider().padding(.leading, 68)
+
+            NavigationLink(destination: diagnostics) {
+                toolRow(
+                    title: "Diagnostics",
+                    detail: "Connection details and debug log",
+                    symbol: "waveform.path.ecg"
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("diagnostics-link")
+            .focusable()
         }
-        .sectionSurface()
+        .linkCard()
     }
 
-    private var diagnosticsLink: some View {
-        NavigationLink(destination: diagnostics) {
-            HStack(spacing: 12) {
-                Image(systemName: "stethoscope")
-                    .frame(width: 22)
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Diagnostics")
-                        .foregroundStyle(.primary)
-                    Text("Connection details and debug log")
-                        .font(.subheadline)
-                        .foregroundStyle(.primary)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption.bold())
-                    .foregroundStyle(.tertiary)
-                    .accessibilityHidden(true)
+    private func toolRow(title: String, detail: String, symbol: String) -> some View {
+        HStack(spacing: 12) {
+            LinkIcon(symbol: symbol)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                Text(detail)
+                    .font(.footnote)
+                    .foregroundStyle(LinkAppearance.secondaryText)
             }
-            .contentShape(Rectangle())
-            .frame(minHeight: 44)
+            .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 4)
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(LinkAppearance.secondaryText)
+                .accessibilityHidden(true)
         }
-        .buttonStyle(.plain)
-        .sectionSurface()
-        .accessibilityIdentifier("diagnostics-link")
-        .focusable()
+        .padding(18)
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+
+    private func actionSymbol(_ action: GeotaggingAction) -> String {
+        switch action {
+        case .start: "location.fill"
+        case .cancel: "xmark"
+        case .approveExperimental: "checkmark.shield"
+        case .retry: "arrow.clockwise"
+        case .stop: "stop.fill"
+        case .sendNow: "location.north.line.fill"
+        case .openSettings: "gearshape"
+        case .requestBackgroundPermission: "location"
+        }
     }
 
     private var statusSymbol: String {
@@ -231,34 +265,11 @@ struct GeotaggingHomeView<Diagnostics: View>: View {
     private var statusColor: Color {
         switch state.phase {
         case .ready:
-            .green
+            LinkAppearance.positive
         case .needsAttention, .approvalRequired, .unsupported:
-            .orange
+            LinkAppearance.warning
         default:
-            .accentColor
+            LinkAppearance.accent
         }
-    }
-}
-
-private var pageBackgroundColor: Color {
-    #if canImport(UIKit)
-        Color(uiColor: .systemGroupedBackground)
-    #else
-        Color.secondary.opacity(0.08)
-    #endif
-}
-
-private var sectionBackgroundColor: Color {
-    #if canImport(UIKit)
-        Color(uiColor: .secondarySystemGroupedBackground)
-    #else
-        Color.primary.opacity(0.05)
-    #endif
-}
-
-extension View {
-    fileprivate func sectionSurface() -> some View {
-        padding(16)
-            .background(sectionBackgroundColor, in: RoundedRectangle(cornerRadius: 16))
     }
 }

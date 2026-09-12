@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F81000000000000000000002 /* UITestAppearanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82000000000000000000002 /* UITestAppearanceTests.swift */; };
+		F81000000000000000000001 /* LinkAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82000000000000000000001 /* LinkAppearance.swift */; };
 		0B6CB9763455F1B66805D937 /* DiagnosticsLogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91EEF86295BDE3EF8944F6F1 /* DiagnosticsLogStore.swift */; };
 		104595EFC68F4FC779E11225 /* CameraGPSLinkAppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F1261685B92EB3D98C37A4C /* CameraGPSLinkAppModel.swift */; };
 		2B479F39225870DEB9C4D7E7 /* LinkSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1665420B5C90F23BD5410EC6 /* LinkSettingsView.swift */; };
@@ -68,6 +70,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		F82000000000000000000002 /* UITestAppearanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestAppearanceTests.swift; sourceTree = "<group>"; };
+		F82000000000000000000001 /* LinkAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkAppearance.swift; sourceTree = "<group>"; };
 		030683E6BCA300F0509C6F20 /* UITestFixtures.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UITestFixtures.swift; sourceTree = "<group>"; };
 		1665420B5C90F23BD5410EC6 /* LinkSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LinkSettingsView.swift; sourceTree = "<group>"; };
 		35390567B4C829222F5ACA85 /* CameraGPSLinkUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CameraGPSLinkUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -156,6 +160,7 @@
 			isa = PBXGroup;
 			children = (
 				90A9F0D479AB410E42204A74 /* CameraGPSLinkUnitTests.swift */,
+				F82000000000000000000002 /* UITestAppearanceTests.swift */,
 				F40000000000000000000001 /* CameraBLEManagerTests.swift */,
 				F72000000000000000000004 /* CameraPairingTests.swift */,
 				F40000000000000000000002 /* SonyReleasePolicyTests.swift */,
@@ -193,6 +198,7 @@
 				3F1261685B92EB3D98C37A4C /* CameraGPSLinkAppModel.swift */,
 				91EEF86295BDE3EF8944F6F1 /* DiagnosticsLogStore.swift */,
 				E80F7E090D6DA23B15654EB6 /* GeotaggingHomeView.swift */,
+				F82000000000000000000001 /* LinkAppearance.swift */,
 				1665420B5C90F23BD5410EC6 /* LinkSettingsView.swift */,
 				FB676953481397FF26F1462C /* DiagnosticsView.swift */,
 				030683E6BCA300F0509C6F20 /* UITestFixtures.swift */,
@@ -357,6 +363,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A33D26C0EE99B9A5BF13F34E /* CameraGPSLinkUnitTests.swift in Sources */,
+				F81000000000000000000002 /* UITestAppearanceTests.swift in Sources */,
 				F30000000000000000000001 /* CameraBLEManagerTests.swift in Sources */,
 				F71000000000000000000004 /* CameraPairingTests.swift in Sources */,
 				F30000000000000000000002 /* SonyReleasePolicyTests.swift in Sources */,
@@ -389,6 +396,7 @@
 				104595EFC68F4FC779E11225 /* CameraGPSLinkAppModel.swift in Sources */,
 				0B6CB9763455F1B66805D937 /* DiagnosticsLogStore.swift in Sources */,
 				2FC9FB19FA2EEB1EEE05CB95 /* GeotaggingHomeView.swift in Sources */,
+				F81000000000000000000001 /* LinkAppearance.swift in Sources */,
 				2B479F39225870DEB9C4D7E7 /* LinkSettingsView.swift in Sources */,
 				3CCED299EF103D830F15DE24 /* DiagnosticsView.swift in Sources */,
 				C06C7561A1EC8EC3183C676C /* UITestFixtures.swift in Sources */,

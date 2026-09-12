@@ -20,6 +20,7 @@ final class CameraGPSLinkUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["iPhone Location"].exists)
         XCTAssertFalse(app.staticTexts["DD11 timezone"].exists)
         XCTAssertFalse(app.staticTexts["Pending reconnect"].exists)
+        recordScreenshot("Home — not connected")
     }
 
     func testLoadingCanCancelAndRetryAfterTimeout() {
@@ -56,6 +57,7 @@ final class CameraGPSLinkUITests: XCTestCase {
         app.buttons["search-pairing-cameras"].tap()
         let candidates = app.buttons.matching(identifier: "pairing-camera")
         XCTAssertEqual(candidates.count, 2)
+        recordScreenshot("Pairing — camera selection")
         XCTAssertFalse(app.buttons["confirm-camera-pairing"].exists)
         candidates.element(boundBy: 0).tap()
         let confirm = app.buttons["confirm-camera-pairing"]
@@ -110,6 +112,7 @@ final class CameraGPSLinkUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Send Current Location"].exists)
         XCTAssertTrue(app.buttons["Stop Geotagging"].exists)
         XCTAssertFalse(app.buttons["Stop Geotagging"].isSelected)
+        recordScreenshot("Home — ready")
 
         app.buttons["Send Current Location"].tap()
         XCTAssertTrue(app.staticTexts["Just now"].waitForExistence(timeout: 2))
@@ -178,6 +181,7 @@ final class CameraGPSLinkUITests: XCTestCase {
         selectSetting("Continue in Background")
         selectSetting("Best Accuracy")
         XCTAssertTrue(app.staticTexts["Background · Best Accuracy"].exists)
+        recordScreenshot("Settings — effect preview")
 
         app.buttons["settings-cancel"].tap()
         XCTAssertTrue(app.staticTexts["While Open · Battery Saver"].waitForExistence(timeout: 2))
@@ -295,6 +299,15 @@ final class CameraGPSLinkUITests: XCTestCase {
         )
     }
 
+    func testExplicitLightAppearancePassesAccessibilityAudit() throws {
+        launch("ready", arguments: ["-AppleInterfaceStyle", "Light"])
+        XCTAssertTrue(app.staticTexts["Ready to Geotag"].waitForExistence(timeout: 5))
+        recordScreenshot("Home — explicit light")
+        try app.performAccessibilityAudit(
+            for: [.contrast, .hitRegion, .sufficientElementDescription, .textClipped, .trait]
+        )
+    }
+
     func testDarkIncreasedContrastAndReducedMotionAudit() throws {
         launch(
             "ready",
@@ -305,9 +318,37 @@ final class CameraGPSLinkUITests: XCTestCase {
             ]
         )
         XCTAssertTrue(app.staticTexts["Ready to Geotag"].waitForExistence(timeout: 5))
+        recordScreenshot("Home — dark increased contrast")
         try app.performAccessibilityAudit(
             for: [.contrast, .hitRegion, .sufficientElementDescription, .textClipped, .trait]
         )
+    }
+
+    func testLargestTextKeepsToolsAndSecondaryActionReachable() {
+        launch(
+            "ready",
+            arguments: [
+                "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+            ]
+        )
+        XCTAssertTrue(app.staticTexts["Ready to Geotag"].waitForExistence(timeout: 5))
+        recordScreenshot("Home — largest text")
+        let send = app.buttons["secondary-action"]
+        scrollUntilVisible(send)
+        XCTAssertTrue(send.isHittable)
+        send.tap()
+        XCTAssertTrue(app.staticTexts["Just now"].waitForExistence(timeout: 2))
+
+        openLinkSettings()
+        XCTAssertTrue(app.buttons["settings-cancel"].isHittable)
+        app.buttons["settings-cancel"].tap()
+        waitForDisappearance(app.navigationBars["Link Settings"])
+
+        let diagnostics = app.buttons["diagnostics-link"]
+        scrollUntilVisible(diagnostics)
+        XCTAssertTrue(diagnostics.isHittable)
+        diagnostics.tap()
+        XCTAssertTrue(app.navigationBars["Diagnostics"].waitForExistence(timeout: 3))
     }
 
     func testLandscapeKeepsPrimaryActionReachable() {
@@ -316,6 +357,13 @@ final class CameraGPSLinkUITests: XCTestCase {
 
         XCTAssertTrue(app.buttons["Start Geotagging"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Start Geotagging"].isHittable)
+    }
+
+    private func recordScreenshot(_ name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     private func launch(_ scenario: String, arguments: [String] = []) {

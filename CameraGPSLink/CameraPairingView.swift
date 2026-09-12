@@ -11,15 +11,26 @@ struct CameraPairingView: View {
         NavigationStack {
             List {
                 Section("Before You Start") {
-                    Text(pairing.bluetooth.guidance)
-                    Text(
-                        "Keep the camera nearby. Accept Bluetooth pairing requests on both the iPhone and camera. Location permission is not needed to pair."
-                    )
+                    HStack(alignment: .top, spacing: 12) {
+                        LinkIcon(symbol: "camera.badge.ellipsis")
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(pairing.bluetooth.guidance)
+                                .font(.headline)
+                            Text(
+                                "Keep the camera nearby. Accept Bluetooth pairing requests on both the iPhone and camera. Location permission is not needed to pair."
+                            )
+                            .font(.subheadline)
+                            .foregroundStyle(LinkAppearance.secondaryText)
+                        }
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.vertical, 8)
                     if pairing.bluetooth == .denied || pairing.bluetooth == .poweredOff {
                         Button("Open iPhone Settings", action: appModel.openSettings)
                             .accessibilityIdentifier("pairing-settings")
                     }
                 }
+                .listRowBackground(LinkAppearance.surface)
 
                 Section("Camera Pairing") {
                     if pairing.isPairing {
@@ -31,6 +42,8 @@ struct CameraPairingView: View {
                     }
                     if pairing.completed {
                         Label("Pairing Initialization Accepted", systemImage: "checkmark.circle.fill")
+                            .font(.headline)
+                            .foregroundStyle(LinkAppearance.positive)
                             .accessibilityIdentifier("pairing-complete")
                         Text(
                             "This is the camera's write acknowledgement, not an independent check of the iOS bond. Close this screen and start geotagging to verify the location link."
@@ -43,13 +56,18 @@ struct CameraPairingView: View {
                         ProgressView(
                             "\(pairing.waitingForBluetooth ? "Waiting for Bluetooth" : "Working with camera")…")
                     }
-                    Button("Search for Cameras", action: appModel.requestPairingInitialization)
-                        .disabled(!pairing.canSearch)
-                        .accessibilityIdentifier("search-pairing-cameras")
+                    Button(action: appModel.requestPairingInitialization) {
+                        Label("Search for Cameras", systemImage: "magnifyingglass")
+                    }
+                    .buttonStyle(LinkActionButtonStyle())
+                    .listRowSeparator(.hidden)
+                    .disabled(!pairing.canSearch)
+                    .accessibilityIdentifier("search-pairing-cameras")
                     if !pairing.canSearch && !pairing.isPairing {
                         Text("Stop geotagging before adding a camera.")
                     }
                 }
+                .listRowBackground(LinkAppearance.surface)
 
                 if !pairing.cameras.isEmpty {
                     Section("Select Your Camera") {
@@ -57,13 +75,31 @@ struct CameraPairingView: View {
                             Button {
                                 appModel.selectPairingCamera(id: candidate.id)
                             } label: {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(candidate.name)
-                                    Text("Signal: \(candidate.rssi) dBm")
+                                HStack(spacing: 12) {
+                                    LinkIcon(symbol: "camera.fill")
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(candidate.name)
+                                            .font(.headline)
+                                            .foregroundStyle(.primary)
+                                        Label(
+                                            "Signal: \(candidate.rssi) dBm",
+                                            systemImage: "antenna.radiowaves.left.and.right"
+                                        )
                                         .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(LinkAppearance.secondaryText)
+                                    }
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    Spacer(minLength: 4)
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption.weight(.semibold))
+                                        .accessibilityHidden(true)
                                 }
+                                .padding(.vertical, 4)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
+                            .listRowBackground(LinkAppearance.surface)
                             .accessibilityIdentifier("pairing-camera")
                         }
                     }
@@ -77,15 +113,20 @@ struct CameraPairingView: View {
                         Button("Approve Experimental Pairing", action: appModel.approveExperimentalProfile)
                             .accessibilityIdentifier("approve-pairing-profile")
                     }
+                    .listRowBackground(LinkAppearance.warningSurface)
                 }
                 if pairing.isPairing && camera.pairingConfirmationPending {
                     Section("Confirm on the Camera") {
                         Text(
                             "Is the camera on its Bluetooth pairing screen? This sends Sony pairing initialization once. It does not start location sharing."
                         )
-                        Button("Pair with This Camera", action: appModel.confirmPairingInitialization)
-                            .accessibilityIdentifier("confirm-camera-pairing")
+                        Button(action: appModel.confirmPairingInitialization) {
+                            Label("Pair with This Camera", systemImage: "link")
+                        }
+                        .buttonStyle(LinkActionButtonStyle())
+                        .accessibilityIdentifier("confirm-camera-pairing")
                     }
+                    .listRowBackground(LinkAppearance.surface)
                 }
                 if pairing.isPairing && camera.state == .failed {
                     Section("If Pairing Still Fails") {
@@ -93,8 +134,10 @@ struct CameraPairingView: View {
                             "If pairing information is inconsistent, forget this camera in iPhone Settings → Bluetooth and remove this iPhone in the camera's Manage Paired Device menu. Open the camera pairing screen and search again."
                         )
                     }
+                    .listRowBackground(LinkAppearance.warningSurface)
                 }
             }
+            .linkListBackground()
             .navigationTitle("Add Camera")
             #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
@@ -109,6 +152,7 @@ struct CameraPairingView: View {
                 }
             }
         }
+        .tint(LinkAppearance.accent)
         .onDisappear { appModel.cancelPairingInitialization() }
     }
 }
