@@ -299,6 +299,15 @@ final class CameraGPSLinkUITests: XCTestCase {
         )
     }
 
+    func testExplicitLightAppearancePassesAccessibilityAudit() throws {
+        launch("ready", arguments: ["-AppleInterfaceStyle", "Light"])
+        XCTAssertTrue(app.staticTexts["Ready to Geotag"].waitForExistence(timeout: 5))
+        recordScreenshot("Home — explicit light")
+        try app.performAccessibilityAudit(
+            for: [.contrast, .hitRegion, .sufficientElementDescription, .textClipped, .trait]
+        )
+    }
+
     func testDarkIncreasedContrastAndReducedMotionAudit() throws {
         launch(
             "ready",
@@ -328,7 +337,7 @@ final class CameraGPSLinkUITests: XCTestCase {
         scrollUntilVisible(send)
         XCTAssertTrue(send.isHittable)
         send.tap()
-        XCTAssertTrue(app.staticTexts["Just now"].exists)
+        XCTAssertTrue(app.staticTexts["Just now"].waitForExistence(timeout: 2))
 
         openLinkSettings()
         XCTAssertTrue(app.buttons["settings-cancel"].isHittable)

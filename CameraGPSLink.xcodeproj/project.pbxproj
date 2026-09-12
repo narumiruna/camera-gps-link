@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F81000000000000000000002 /* UITestAppearanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82000000000000000000002 /* UITestAppearanceTests.swift */; };
 		F81000000000000000000001 /* LinkAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82000000000000000000001 /* LinkAppearance.swift */; };
 		0B6CB9763455F1B66805D937 /* DiagnosticsLogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91EEF86295BDE3EF8944F6F1 /* DiagnosticsLogStore.swift */; };
 		104595EFC68F4FC779E11225 /* CameraGPSLinkAppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F1261685B92EB3D98C37A4C /* CameraGPSLinkAppModel.swift */; };
@@ -69,6 +70,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		F82000000000000000000002 /* UITestAppearanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestAppearanceTests.swift; sourceTree = "<group>"; };
 		F82000000000000000000001 /* LinkAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkAppearance.swift; sourceTree = "<group>"; };
 		030683E6BCA300F0509C6F20 /* UITestFixtures.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UITestFixtures.swift; sourceTree = "<group>"; };
 		1665420B5C90F23BD5410EC6 /* LinkSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LinkSettingsView.swift; sourceTree = "<group>"; };
@@ -158,6 +160,7 @@
 			isa = PBXGroup;
 			children = (
 				90A9F0D479AB410E42204A74 /* CameraGPSLinkUnitTests.swift */,
+				F82000000000000000000002 /* UITestAppearanceTests.swift */,
 				F40000000000000000000001 /* CameraBLEManagerTests.swift */,
 				F72000000000000000000004 /* CameraPairingTests.swift */,
 				F40000000000000000000002 /* SonyReleasePolicyTests.swift */,
@@ -360,6 +363,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A33D26C0EE99B9A5BF13F34E /* CameraGPSLinkUnitTests.swift in Sources */,
+				F81000000000000000000002 /* UITestAppearanceTests.swift in Sources */,
 				F30000000000000000000001 /* CameraBLEManagerTests.swift in Sources */,
 				F71000000000000000000004 /* CameraPairingTests.swift in Sources */,
 				F30000000000000000000002 /* SonyReleasePolicyTests.swift in Sources */,

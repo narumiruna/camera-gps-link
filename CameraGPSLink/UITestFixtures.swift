@@ -10,7 +10,7 @@
         func body(content: Content) -> some View {
             if ProcessInfo.processInfo.environment["SONYGEOTAG_UI_SCENARIO"] != nil {
                 content
-                    .preferredColorScheme(argument("-AppleInterfaceStyle") == "Dark" ? .dark : nil)
+                    .preferredColorScheme(Self.colorScheme(for: argument("-AppleInterfaceStyle")))
                     .dynamicTypeSize(
                         argument("-UIPreferredContentSizeCategoryName")
                             == "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge"
@@ -18,6 +18,14 @@
                     )
             } else {
                 content
+            }
+        }
+
+        static func colorScheme(for interfaceStyle: String?) -> ColorScheme? {
+            switch interfaceStyle {
+            case "Light": .light
+            case "Dark": .dark
+            default: nil
             }
         }
 
