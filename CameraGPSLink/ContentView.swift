@@ -21,6 +21,9 @@ struct ContentView: View {
                 }
             )
             .navigationTitle("Camera GPS Link")
+            #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button("Add Camera", systemImage: "plus") { showsPairing = true }
@@ -45,6 +48,7 @@ struct ContentView: View {
                 announce(phase)
             }
         }
+        .tint(LinkAppearance.accent)
     }
 
     private func announce(_ phase: GeotaggingPhase) {

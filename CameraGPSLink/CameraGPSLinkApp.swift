@@ -12,6 +12,9 @@ struct CameraGPSLinkApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView(appModel: appModel)
+                #if DEBUG
+                    .modifier(UITestAppearance())
+                #endif
                 .onAppear {
                     appModel.handleScenePhase(.active)
                 }

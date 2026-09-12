@@ -1,6 +1,32 @@
 #if DEBUG
     import CoreLocation
     import Foundation
+    import SwiftUI
+
+    /// Apply test appearance explicitly; iOS can ignore the legacy launch-default overrides.
+    struct UITestAppearance: ViewModifier {
+        @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+        func body(content: Content) -> some View {
+            if ProcessInfo.processInfo.environment["SONYGEOTAG_UI_SCENARIO"] != nil {
+                content
+                    .preferredColorScheme(argument("-AppleInterfaceStyle") == "Dark" ? .dark : nil)
+                    .dynamicTypeSize(
+                        argument("-UIPreferredContentSizeCategoryName")
+                            == "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge"
+                            ? .accessibility5 : dynamicTypeSize
+                    )
+            } else {
+                content
+            }
+        }
+
+        private func argument(_ name: String) -> String? {
+            let arguments = ProcessInfo.processInfo.arguments
+            guard let index = arguments.firstIndex(of: name), index + 1 < arguments.count else { return nil }
+            return arguments[index + 1]
+        }
+    }
 
     @MainActor
     enum UITestAppModelFactory {
