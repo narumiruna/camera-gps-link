@@ -107,20 +107,28 @@ final class SonyReleasePolicyTests: XCTestCase {
         )
     }
 
-    func testPublicReleaseRejectsCandidateUntilVerifiedRegistryPromotion() {
+    func testPublicReleaseAcceptsPromotedCandidateAndKeepsBackgroundOff() {
         let fixture = makeCandidate()
         let policy = SonyReleasePolicy(mode: .publicRelease)
-
         let compatibility = SonyCompatibility(confidence: .experimental, evidence: nil)
-        assertUnsupported(
-            policy.evaluate(
-                identity: fixture.identity,
-                profile: fixture.profile,
-                descriptors: fixture.descriptors,
-                genericCompatibility: compatibility
-            ),
-            shouldContinueScanning: true
+
+        let decision = policy.evaluate(
+            identity: fixture.identity,
+            profile: fixture.profile,
+            descriptors: fixture.descriptors,
+            genericCompatibility: compatibility
         )
+
+        guard case .proceed(let authorization) = decision else {
+            return XCTFail("Promoted exact entry should proceed")
+        }
+        XCTAssertEqual(authorization.confidence, .verified)
+        XCTAssertFalse(authorization.requiresExperimentalApproval)
+        XCTAssertEqual(authorization.expectedPacketSize, 95)
+        XCTAssertEqual(policy.verifiedEntries, [SonyReleasePolicy.a7c2QualificationEntry])
+        XCTAssertFalse(policy.allowsExperimentalApproval)
+        XCTAssertFalse(policy.allowsBackground)
+
         let unsupportedProfile = SonyLocationProfile(
             kind: .unsupported,
             reason: "missing required characteristic",
@@ -137,34 +145,110 @@ final class SonyReleasePolicyTests: XCTestCase {
                 descriptors: fixture.descriptors,
                 genericCompatibility: compatibility
             ),
+            shouldContinueScanning: false
+        )
+    }
+
+    func testPublicReleaseRejectsEveryExactMatchDimension() {
+        let fixture = makeCandidate()
+        let policy = SonyReleasePolicy(mode: .publicRelease)
+        let compatibility = SonyCompatibility(confidence: .experimental, evidence: nil)
+        let mismatchedIdentities = [
+            SonyCameraIdentity(model: "ILCE-7M4", firmware: "2.01", protocolVersion: 101),
+            SonyCameraIdentity(model: "ILCE-7CM2", firmware: "2.02", protocolVersion: 101),
+            SonyCameraIdentity(model: "ILCE-7CM2", firmware: nil, protocolVersion: 101),
+            SonyCameraIdentity(model: "ILCE-7CM2", firmware: "2.01", protocolVersion: 100),
+            SonyCameraIdentity(model: "ILCE-7CM2", firmware: "2.01", protocolVersion: nil),
+        ]
+
+        for identity in mismatchedIdentities {
+            assertUnsupported(
+                policy.evaluate(
+                    identity: identity,
+                    profile: fixture.profile,
+                    descriptors: fixture.descriptors,
+                    genericCompatibility: compatibility
+                ),
+                shouldContinueScanning: true
+            )
+        }
+
+        let wrongProfile = SonyLocationProfile(
+            kind: .legacy,
+            reason: "fixture",
+            protocolVersion: 101,
+            experimental: false,
+            hasStatusNotifications: true,
+            hasTimeCorrection: true,
+            hasAreaAdjustment: true
+        )
+        assertUnsupported(
+            policy.evaluate(
+                identity: fixture.identity,
+                profile: wrongProfile,
+                descriptors: fixture.descriptors,
+                genericCompatibility: compatibility
+            ),
             shouldContinueScanning: true
         )
-        XCTAssertTrue(policy.verifiedEntries.isEmpty)
-        XCTAssertFalse(policy.allowsExperimentalApproval)
-        XCTAssertFalse(policy.allowsBackground)
-    }
 
-    func testPromotedPublicEntryProceedsAsVerified() {
-        let fixture = makeCandidate()
-        let entry = SonyReleasePolicy.a7c2QualificationEntry
-        let policy = SonyReleasePolicy(mode: .publicRelease, verifiedEntries: [entry])
-
-        let decision = policy.evaluate(
-            identity: fixture.identity,
-            profile: fixture.profile,
-            descriptors: fixture.descriptors,
-            genericCompatibility: SonyCompatibility(confidence: .experimental, evidence: nil)
+        var wrongDescriptors = fixture.descriptors
+        wrongDescriptors.removeLast()
+        assertUnsupported(
+            policy.evaluate(
+                identity: fixture.identity,
+                profile: fixture.profile,
+                descriptors: wrongDescriptors,
+                genericCompatibility: compatibility
+            ),
+            shouldContinueScanning: true
         )
 
-        guard case .proceed(let authorization) = decision else {
-            return XCTFail("Promoted exact entry should proceed")
+        assertUnsupported(
+            policy.evaluate(
+                identity: fixture.identity,
+                profile: fixture.profile,
+                descriptors: fixture.descriptors,
+                genericCompatibility: compatibility,
+                requiresPairingEndpoint: true
+            ),
+            shouldContinueScanning: true
+        )
+
+        let pairingFixture = makeCandidate(includePairing: true)
+        guard
+            case .proceed = policy.evaluate(
+                identity: pairingFixture.identity,
+                profile: pairingFixture.profile,
+                descriptors: pairingFixture.descriptors,
+                genericCompatibility: compatibility,
+                requiresPairingEndpoint: true
+            )
+        else {
+            return XCTFail("Promoted exact pairing endpoint should proceed")
         }
-        XCTAssertEqual(authorization.confidence, .verified)
-        XCTAssertFalse(authorization.requiresExperimentalApproval)
-        XCTAssertEqual(authorization.expectedPacketSize, 95)
+
+        var wrongPairingDescriptors = fixture.descriptors
+        wrongPairingDescriptors.append(
+            descriptor(
+                SonyProtocol.pairingInitUUID,
+                [.writeWithoutResponse],
+                service: SonyProtocol.pairingServiceUUID
+            )
+        )
+        assertUnsupported(
+            policy.evaluate(
+                identity: fixture.identity,
+                profile: fixture.profile,
+                descriptors: wrongPairingDescriptors,
+                genericCompatibility: compatibility,
+                requiresPairingEndpoint: true
+            ),
+            shouldContinueScanning: true
+        )
     }
 
-    func testDevelopmentSkipsApprovalOnlyForExactQualificationCandidate() {
+    func testDevelopmentUsesVerifiedEntryAndStillGatesGenericCandidate() {
         let fixture = makeCandidate()
         let policy = SonyReleasePolicy(mode: .development)
         let compatibility = SonyCompatibility(confidence: .experimental, evidence: nil)
@@ -180,7 +264,7 @@ final class SonyReleasePolicyTests: XCTestCase {
         }
         XCTAssertFalse(exactAuthorization.requiresExperimentalApproval)
         XCTAssertEqual(exactAuthorization.expectedPacketSize, 95)
-        XCTAssertEqual(exactAuthorization.confidence, .experimental)
+        XCTAssertEqual(exactAuthorization.confidence, .verified)
 
         let genericDecision = policy.evaluate(
             identity: SonyCameraIdentity(model: "ILCE-7M4", firmware: "4.00", protocolVersion: 101),
@@ -273,13 +357,13 @@ final class SonyReleasePolicyTests: XCTestCase {
     }
 
     @MainActor
-    func testPublicReleaseRejectsLocationAndPairingBeforeAnyOperation() {
+    func testPublicReleaseRejectsMismatchedLocationAndPairingBeforeAnyOperation() {
         for intent in [CameraConnectionIntent.location, .pairing] {
             let fixture = makeCandidate(includePairing: true)
             let manager = makeManager(policy: SonyReleasePolicy(mode: .publicRelease))
             manager.activeSessionRequested = true
             manager.connectionIntent = intent
-            manager.discoveredCameraName = fixture.identity.model
+            manager.discoveredCameraName = "ILCE-7M4"
             manager.detectedFirmware = fixture.identity.firmware
             manager.advertisementProtocolVersion = fixture.identity.protocolVersion
             manager.descriptors = fixture.descriptors

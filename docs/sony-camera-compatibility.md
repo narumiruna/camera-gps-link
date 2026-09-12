@@ -2,17 +2,17 @@
 
 Support is qualified by exact model, firmware, advertisement protocol version, and discovered BLE location profile.
 Matching a known GATT shape is **experimental**, not proof that a camera accepts GPS data.
-The current plan limits physical-camera qualification to A7C II: its row records passing post-refactor Python and iOS development foreground writes, with public promotion pending a matching Release-equivalent iOS qualification run.
+The current plan limits physical-camera qualification to A7C II: its row records passing post-refactor Python, iOS development, and Release-equivalent iOS qualification foreground writes. The exact proven identity is promoted for public Release; signed public Release validation remains pending.
 Every other row remains an automated-fixture candidate with no physical test or promotion required.
 
 The first public iOS App Store release is intentionally limited to Sony Alpha 7C II (`ILCE-7CM2`).
 Other model fixtures and research tools do not constitute public iOS support.
-The ordinary public Release registry remains empty until the A7C II iOS foreground qualification passes. A separate Release-optimized qualification build accepts only the exact A7C II `2.01` candidate and provides no experimental override.
+The ordinary public Release registry contains only the exact A7C II `2.01` identity proven by the Release-optimized qualification build. Qualification and public Release policies remain fail-closed for every other identity and provide no experimental override.
 See [`plans/2026-08-31_ios-a7c2-only-app-store-release-plan.md`](plans/2026-08-31_ios-a7c2-only-app-store-release-plan.md) for the accepted release decision and verification gates.
 
 | Model | Firmware | Advertisement version | Profile | DD21 / packet | Python foreground | iOS foreground | Background | Evidence |
 | --- | --- | ---: | --- | --- | --- | --- | --- | --- |
-| A7C II (`ILCE-7CM2`) | `2.01` | `101` (`0x65`) | modern | `06 10 00 9c 02 00 00` / 95 | verified HEIF EXIF | Debug HEIF EXIF verified; qualification pending | unverified | [`ilce-7cm2-2.01.md`](compatibility/ilce-7cm2-2.01.md), [`a7c2-ble-map.md`](a7c2-ble-map.md) |
+| A7C II (`ILCE-7CM2`) | `2.01` | `101` (`0x65`) | modern | `06 10 00 9c 02 00 00` / 95 | verified HEIF EXIF | Debug and Qualification HEIF EXIF verified; signed public Release pending | unverified | [`ilce-7cm2-2.01.md`](compatibility/ilce-7cm2-2.01.md), [`a7c2-ble-map.md`](a7c2-ble-map.md) |
 | A7 III (`ILCE-7M3`) | unknown | unknown | unresolved; legacy candidate only when `<65` and controls absent | unknown | unverified | unverified | unverified | none |
 | A7 IV (`ILCE-7M4`) | unknown | unknown | unresolved; modern candidate | unknown | unverified | unverified | unverified | none |
 | A6700 (`ILCE-6700`) | unknown | unknown | unresolved; modern candidate | unknown | unverified | unverified | unverified | none |
